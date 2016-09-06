@@ -12,15 +12,17 @@ import Control.Lens
 
 import Data.List (mapAccumL)
 
-import qualified Data.Vector.Unboxed.Mutable as MV
-
 import Data.Histogram.Generic (Histogram)
 import qualified Data.Histogram.Generic as H
+
 import Data.Histogram.Bin (Bin(..), BinEq(..))
+
 import Data.Vector.Generic (Vector)
-import qualified Data.Vector.Generic as G
+import qualified Data.Vector.Generic as V
+import qualified Data.Vector.Generic.Mutable as MV
 
 import Data.Semigroup (Semigroup(..))
+import Data.Foldable (fold)
 
 import Data.Weighted
 
@@ -42,12 +44,12 @@ bins = lens H.bins f
 
 
 hadd :: (Vector v a, Semigroup a, Bin b, BinEq b) => Histogram v b a -> Histogram v b a -> Histogram v b a
-hadd h h' | H.bins h `binEq` H.bins h' = over histData (G.zipWith (+) (view histData h')) h
+hadd h h' | H.bins h `binEq` H.bins h' = over histData (V.zipWith (<>) (view histData h')) h
 hadd _ _                               = error "attempt to add histograms with different binning."
 
 
 modify' :: Vector v a => (a -> a) -> Int -> v a -> v a
-modify' f i = G.modify $ \v -> do y <- MV.read v i
+modify' f i = V.modify $ \v -> do y <- MV.read v i
                                   MV.write v i $! f y
                                   return ()
 
@@ -63,11 +65,13 @@ fill f (w, x) h = over histData (maybe id (modify' (f w)) ixH) h
               | otherwise = Just i
 
 
-instance (Vector v a, Bin b, Weighted a) => Weighted (Histogram v b a) where
+instance (Vector v a, Traversable v, Bin b, Semigroup a, Monoid a, Weighted a, Fractional (Weight a)) 
+      => Weighted (Histogram v b a) where
+
     type Weight (Histogram v b a) = Weight a
-    h `scaledBy` w = over (histData . fmap) (`scaledBy` w)
-    integral :: (Vector v a, Semigroup a, Monoid a, Weighted a, Fractional (Weight a), Bin b) => Lens' (Histogram v b a) a
-    integral = lens (G.foldl (<>) mempty . H.histData) f
-        where f h w = let (s, xs) = mapAccumL (\s' x -> (x <> s', x*w/s)) 0 . G.toList . view histData $ h
-                      in  set histData (G.fromList xs) h
+    h `scaledBy` w = over (histData . traverse) (`scaledBy` w) h
+
+    integral = lens (view integral . fold . view histData) f
+        where f h w = let (s, xs) = mapAccumL (\s' x -> (s' <> x, x `scaledBy` (w / view integral s))) mempty . view histData $ h
+                      in  set histData xs h
 
