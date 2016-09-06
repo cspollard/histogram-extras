@@ -18,6 +18,7 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Data.YODA.Annotated
                      , Data.YODA.Histo
+                     , Data.YODA.Profile
                      , Data.YODA.Dist
                      , Data.Weighted
                      , Data.Fillable
