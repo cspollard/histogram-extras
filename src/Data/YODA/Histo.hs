@@ -5,7 +5,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Data.YODA.Histo ( Histo1D
+module Data.YODA.Histo ( Histo1D, hist, histData, bins, overflows
                        , YodaHisto1D, fillHisto1D, printHisto1D
                        , addH
                        , module X

@@ -4,7 +4,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Data.YODA.Profile ( YodaProfile1D, fillProfile1D, printProfile1D ) where
+module Data.YODA.Profile ( Profile1D, prof, profData, bins, overflows
+                         , YodaProfile1D, fillProfile1D, printProfile1D
+                         ) where
 
 import Control.Lens
 
