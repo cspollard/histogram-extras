@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                histogram-extras
-version:             0.1.0.0
+version:             0.2.0.0
 -- synopsis:            
 -- description:         
 license:             BSD3
@@ -17,6 +17,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Data.Histogram.Extra
+                     , Data.YODA.Histo
   -- other-modules:       
   other-extensions:    OverloadedStrings, DeriveGeneric, TypeFamilies, TemplateHaskell, NoMonomorphismRestriction, FlexibleContexts
   build-depends:       base >=4.8 && <4.9
