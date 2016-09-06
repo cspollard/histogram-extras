@@ -1,16 +1,10 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Data.Histogram.Extra ( histData, overflows, bins
-                            , integral, hadd
-                            , fill, Histogram, Bin(..)
-                            ) where
+module Data.YODA.Internal where
 
 import Control.Lens
-
-import Data.List (mapAccumL)
 
 import Data.Histogram.Generic (Histogram)
 import qualified Data.Histogram.Generic as H
@@ -22,9 +16,16 @@ import qualified Data.Vector.Generic as V
 import qualified Data.Vector.Generic.Mutable as MV
 
 import Data.Semigroup (Semigroup(..))
-import Data.Foldable (fold)
 
-import Data.Weighted
+import Data.Fillable (Fillable, FillVec)
+import qualified Data.Fillable as F
+
+
+-- strict version of modify
+modify' :: Vector v a => (a -> a) -> Int -> v a -> v a
+modify' f i = V.modify $ \v -> do y <- MV.read v i
+                                  MV.write v i $! f y
+                                  return ()
 
 
 histData :: (Vector v a, Bin b) => Lens' (Histogram v b a) (v a)
@@ -42,20 +43,15 @@ bins = lens H.bins f
     where f h bs = H.histogramUO bs (view overflows h) (view histData h)
 
 
-
 hadd :: (Vector v a, Semigroup a, Bin b, BinEq b) => Histogram v b a -> Histogram v b a -> Histogram v b a
 hadd h h' | H.bins h `binEq` H.bins h' = over histData (V.zipWith (<>) (view histData h')) h
 hadd _ _                               = error "attempt to add histograms with different binning."
 
 
-modify' :: Vector v a => (a -> a) -> Int -> v a -> v a
-modify' f i = V.modify $ \v -> do y <- MV.read v i
-                                  MV.write v i $! f y
-                                  return ()
-
-
-fill :: (Vector v a, Bin b) => (w -> a -> a) -> (w, BinValue b) -> Histogram v b a -> Histogram v b a
-fill f (w, x) h = over histData (maybe id (modify' (f w)) ixH) h 
+fill :: (Vector v a, Bin b, Fillable a) => FillVec a -> BinValue b -> Histogram v b a -> Histogram v b a
+fill wxs x h = case ixH of
+                    Just i' -> over histData (modify' (F.fill wxs) i') h
+                    Nothing -> h
     where b = view bins h
           ou = view overflows h
           n = H.nBins b
@@ -63,15 +59,3 @@ fill f (w, x) h = over histData (maybe id (modify' (f w)) ixH) h
           ixH | i < 0     = const n <$> ou     -- underflow
               | i >= n    = const (n+1) <$> ou -- overflow
               | otherwise = Just i
-
-
-instance (Vector v a, Traversable v, Bin b, Semigroup a, Monoid a, Weighted a, Fractional (Weight a)) 
-      => Weighted (Histogram v b a) where
-
-    type Weight (Histogram v b a) = Weight a
-    h `scaledBy` w = over (histData . traverse) (`scaledBy` w) h
-
-    integral = lens (view integral . fold . view histData) f
-        where f h w = let (s, xs) = mapAccumL (\s' x -> (s' <> x, x `scaledBy` (w / view integral s))) mempty . view histData $ h
-                      in  set histData xs h
-

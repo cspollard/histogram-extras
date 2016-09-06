@@ -24,6 +24,7 @@ import Data.Vector.Unboxed (Unbox)
 import Data.Vector.Unboxed.Deriving
 
 import Data.Weighted
+import Data.Fillable
 
 
 data Dist0D a = Dist0D { _sumW :: !a
@@ -59,6 +60,12 @@ instance (Num a, Fractional a) => Weighted (Dist0D a) where
     integral = lens (view sumW) (\(Dist0D sw sww n) w -> Dist0D w (sww*(w/sw)^(2::Int)) n)
 
 
+instance Num a => Fillable (Dist0D a) where
+    type FillVec (Dist0D a) = a
+    w `fill` d = d & sumW +~ w
+                   & sumWW +~ (w*w)
+
+
 printDist0D :: Show a => Dist0D a -> Text
 printDist0D (Dist0D w ww n) = T.concat [ T.pack (show w), "\t"
                                        , T.pack (show ww), "\t"
@@ -92,6 +99,12 @@ instance (Num a, Fractional a) => Weighted (Dist1D a) where
 
     integral = lens (view $ distW . integral) (\d w -> let w' = d ^. integral in d & (distW . integral) .~ w & sumWX *~ (w'/w))
 
+
+instance Num a => Fillable (Dist1D a) where
+    type FillVec (Dist1D a) = (a, a)
+    (w, x) `fill` d = d & distW %~ fill w
+                        & sumX +~ x
+                        & sumWX +~ (w*x)
 
 
 printDist1D :: Show a => Dist1D a -> Text
@@ -133,6 +146,13 @@ instance (Num a, Fractional a) => Weighted (Dist2D a) where
                                                        in  d & (distX . integral) .~ w
                                                              & (distY . integral) .~ w
                                                              & sumWXY *~ (w'/w))
+
+
+instance Num a => Fillable (Dist2D a) where
+    type FillVec (Dist2D a) = (a, a, a)
+    (w, x, y) `fill` d = d & distX %~ fill (w, x)
+                           & distY %~ fill (w, y)
+                           & sumWXY +~ (w*x*y)
 
 
 derivingUnbox "Dist0D"

@@ -1,41 +1,80 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Data.YODA.Histo ( YodaHisto
-                       , YodaHisto1D, printHisto1D
-                       , YodaProfile1D, printProfile1D
-                       , haddY
+module Data.YODA.Histo ( Histo1D
+                       , YodaHisto1D, fillHisto1D, printHisto1D
+                       , addH
                        , module X
                        ) where
 
 import Control.Lens
 
-import Data.Vector (Vector)
-import qualified Data.Vector as V
-
-import Data.Semigroup (Semigroup(..))
+import GHC.Generics
 
 import Data.Text (Text)
 import qualified Data.Text as T
 
-import Data.Foldable
+import Data.Histogram.Generic (Histogram)
+import Data.Histogram.Bin (binsList, BinEq(..), BinD, Bin(..))
 
-import Data.Histogram.Bin (binsList, BinEq(..), BinD)
+import Data.Vector (Vector)
+import qualified Data.Vector as V
 
-import Data.Histogram.Extra as X
+import Data.Foldable (fold)
+import Data.List (mapAccumL)
+import Data.Semigroup (Semigroup(..))
+
+import Data.Fillable as X
+import Data.Weighted as X
 import Data.YODA.Dist as X
 import Data.YODA.Annotated as X
+import qualified Data.YODA.Internal as I
+
+
+newtype Histo1D b a = Histo1D { _hist :: Histogram Vector b (Dist1D a) } deriving Generic
+
+makeLenses ''Histo1D
+
+histData :: Bin b => Lens' (Histo1D b a) (Vector (Dist1D a))
+histData = hist . I.histData
+
+bins :: Bin b => Lens' (Histo1D b a) b
+bins = hist . I.bins
+
+overflows :: Bin b => Lens' (Histo1D b a) (Maybe (Dist1D a, Dist1D a))
+overflows = hist . I.overflows
+
+
+instance (Num a, Bin b, BinValue b ~ a) => Fillable (Histo1D b a) where
+    type FillVec (Histo1D b a) = (a, a)
+    (w, x) `fill` p = over hist (I.fill (w, x) x) p
+
+
+instance (Num a, Fractional a, Bin b) => Weighted (Histo1D b a) where
+
+    type Weight (Histo1D b a) = a
+
+    h `scaledBy` w = over (histData . traverse) (`scaledBy` w) h
+
+    integral = lens (view integral . fold . view histData) f
+        where f h w = let (s, xs) = mapAccumL (\s' x -> (s' <> x, x `scaledBy` (w / view integral s))) mempty . view histData $ h
+                      in  set histData xs h
+
+
+
+addH :: (Num a, Bin b, BinEq b) => Histo1D b a -> Histo1D b a -> Histo1D b a
+addH h h' = over hist (I.hadd $ view hist h') h
+
 
 -- a YodaHisto is just a histogram with some annotations.
-type YodaHisto b a = Annotated (Histogram Vector b a)
-type YodaHisto1D = YodaHisto BinD (Dist1D Double)
-type YodaProfile1D = YodaHisto BinD (Dist2D Double)
+type YodaHisto1D = Annotated (Histo1D BinD Double)
 
-haddY :: (Semigroup a, Bin b, BinEq b)
-      => YodaHisto b a -> YodaHisto b a -> YodaHisto b a
-haddY yh yh' = over thing (hadd $ view thing yh') yh
-
+fillHisto1D :: (Double, Double) -> YodaHisto1D -> YodaHisto1D
+fillHisto1D wx = over thing (fill wx)
 
 printHisto1D :: YodaHisto1D -> Text
 printHisto1D yh = T.unlines $ let p = yh ^?! path 
@@ -56,6 +95,3 @@ printHisto1D yh = T.unlines $ let p = yh ^?! path
 
       where f (xmin, xmax) d = T.pack (show xmin ++ "\t" ++ show xmax ++ "\t") <> printDist1D d
 
-
-printProfile1D :: YodaProfile1D -> Text
-printProfile1D _ = ""
