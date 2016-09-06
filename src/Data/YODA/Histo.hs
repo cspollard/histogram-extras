@@ -32,40 +32,33 @@ import Data.Histogram.Bin (binsList, BinEq(..))
 import qualified Data.Histogram as H
 
 import Data.Histogram.Extra as X
+import Data.YODA.Dist as X
+import Data.YODA.Annotated as X
 
 -- a YodaHisto is just a histogram with some annotations.
-data YodaHisto b val = YodaHisto { _path :: Text
-                                 , _xLabel :: Text
-                                 , _yLabel :: Text
-                                 , _yhHisto :: !(Histogram b val)
-                                 } deriving Generic
+type YodaHisto b v = Annotated (Histogram b v)
+type YodaHisto1D = YodaHisto H.BinD (Dist1D Double)
+type YodaProfile1D = YodaHisto H.BinD (Dist2D Double)
 
-
-makeLenses ''YodaHisto
-
-haddYH :: (Unbox v, Num v, Bin b, BinEq b)
-       => YodaHisto b v -> YodaHisto b v -> YodaHisto b v
-haddYH yh yh' = over yhHisto (hadd $ view yhHisto yh') yh
-
-
-type YodaHisto1D = YodaHisto H.BinD Double
-
-instance (Serialize val, Bin b, Serialize b, G.Vector V.Vector val)
-         => Serialize (YodaHisto b val) where
+haddY :: (Unbox v, Semigroup v, Bin b, BinEq b)
+      => YodaHisto b v -> YodaHisto b v -> YodaHisto b v
+haddY yh yh' = over thing (hadd $ view thing yh') yh
 
 
 showHisto :: YodaHisto1D -> Text
-showHisto (YodaHisto p xl yl h) = T.unlines $
-                            [ "# BEGIN YODA_HISTO1D " <> p, "Path=" <> p, "Type=Histo1D"
-                            , "XLabel=" <> xl, "YLabel=" <> yl
-                            , "Total\tTotal\t" <> distToText (view integral h)
-                            , case view overflows h of
-                                   Nothing -> ""
-                                   Just (u, o) -> "Underflow\tUnderflow\t" <> T.pack (show u) <>
-                                                  "Overflow\tOverflow\t" <> T.pack (show o)
-                            ] ++ zipWith f bs (V.toList $ view histData h) ++
-                            [ "# END YODA_HISTO1D", "" ]
+showHisto yh = T.unlines $ let p = yh ^?! path 
+                               xl = yh ^?! xlabel
+                               yl = yh ^?! ylabel
+                           in [ "# BEGIN YODA_HISTO1D " <> p, "Path=" <> p, "Type=Histo1D"
+                              , "XLabel=" <> xl, "YLabel=" <> yl
+                              , "Total\tTotal\t" <> views integral printDist1D h
+                              ] ++ case view overflows h of
+                                        Nothing -> []
+                                        Just (u, o) -> [ "Underflow\tUnderflow\t" <> printDist1D u
+                                                       , "Overflow\tOverflow\t" <> printDist1D o
+                                                       ]
+                                ++ zipWith f bs (V.toList $ view histData h) ++
+                              [ "# END YODA_HISTO1D", "" ]
 
-                            where f (xmin, xmax) d = T.pack (show xmin ++ "\t" ++ show xmax ++ "\t") <> distToText d
-                                  distToText d = T.pack (show d) <> "\t0.0\t0.0\t0.0\t0.0"
+                            where f (xmin, xmax) d = T.pack (show xmin ++ "\t" ++ show xmax ++ "\t") <> printDist1D d
                                   bs = V.toList (binsList $ view bins h :: Vector (Double, Double))
