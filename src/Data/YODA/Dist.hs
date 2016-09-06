@@ -46,13 +46,17 @@ instance Wrapped (Dist0D a) where
 instance Num a => Semigroup (Dist0D a) where
     Dist0D w ww n <> Dist0D w' ww' n' = Dist0D (w+w') (ww+ww') (n+n')
 
+instance Num a => Monoid (Dist0D a) where
+    mempty = Dist0D 0 0 0
+    mappend = (<>)
+
 
 instance (Num a, Fractional a) => Weighted (Dist0D a) where
     type Weight (Dist0D a) = a
     d `scaledBy` w = d & sumW *~ w
                        & sumWW *~ (w*w)
 
-    integral = lens (view sumW) (\(Dist0D sw sww n) w -> Dist0D w (sww*(w/sw)^2) n)
+    integral = lens (view sumW) (\(Dist0D sw sww n) w -> Dist0D w (sww*(w/sw)^(2::Int)) n)
 
 
 printDist0D :: Show a => Dist0D a -> Text
@@ -75,6 +79,10 @@ instance Wrapped (Dist1D a) where
 
 instance Num a => Semigroup (Dist1D a) where
     Dist1D dw sx swx <> Dist1D dw' sx' swx' = Dist1D (dw<>dw') (sx+sx') (swx+swx')
+
+instance Num a => Monoid (Dist1D a) where
+    mempty = Dist1D mempty 0 0
+    mappend = (<>)
 
 
 instance (Num a, Fractional a) => Weighted (Dist1D a) where
@@ -109,6 +117,10 @@ instance Wrapped (Dist2D a) where
 
 instance Num a => Semigroup (Dist2D a) where
     Dist2D dx dy swxy <> Dist2D dx' dy' swxy' = Dist2D (dx<>dx') (dy<>dy') (swxy+swxy')
+
+instance Num a => Monoid (Dist2D a) where
+    mempty = Dist2D mempty mempty 0
+    mappend = (<>)
 
 
 instance (Num a, Fractional a) => Weighted (Dist2D a) where
