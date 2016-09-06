@@ -19,8 +19,8 @@ library
   exposed-modules:     Data.Histogram.Extra
                      , Data.YODA.Annotated
                      , Data.YODA.Histo
-                     -- , Data.YODA.Profile
                      , Data.YODA.Dist
+                     , Data.Weighted
 
   -- other-modules:
   other-extensions:    OverloadedStrings, DeriveGeneric, TypeFamilies, TemplateHaskell, NoMonomorphismRestriction, FlexibleContexts
