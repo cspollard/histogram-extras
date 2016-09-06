@@ -6,8 +6,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module Data.YODA.Histo ( Histo1D, hist, histData, bins, overflows
-                       , YodaHisto1D, fillHisto1D, printHisto1D
-                       , addH
+                       , YodaHisto1D, yodaHisto1D, fillHisto1D, printHisto1D
+                       , addH, addYH
+                       , Bin(..), BinD, binD
                        , module X
                        ) where
 
@@ -18,15 +19,18 @@ import GHC.Generics
 import Data.Text (Text)
 import qualified Data.Text as T
 
-import Data.Histogram.Generic (Histogram)
-import Data.Histogram.Bin (binsList, BinEq(..), BinD, Bin(..))
+import Data.Histogram.Generic (Histogram, histogram)
+import Data.Histogram.Bin (binsList, BinEq(..), BinD, Bin(..), binD)
 
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 
 import Data.Foldable (fold)
 import Data.List (mapAccumL)
-import Data.Semigroup (Semigroup(..))
+import Data.Semigroup ((<>))
+
+import Data.Serialize
+import Data.Histogram.Cereal ()
 
 import Data.Fillable as X
 import Data.Weighted as X
@@ -64,6 +68,7 @@ instance (Num a, Fractional a, Bin b) => Weighted (Histo1D b a) where
         where f h w = let (s, xs) = mapAccumL (\s' x -> (s' <> x, x `scaledBy` (w / view integral s))) mempty . view histData $ h
                       in  set histData xs h
 
+instance (Bin b, Serialize b, Serialize a) => Serialize (Histo1D b a) where
 
 
 addH :: (Num a, Bin b, BinEq b) => Histo1D b a -> Histo1D b a -> Histo1D b a
@@ -95,3 +100,10 @@ printHisto1D yh = T.unlines $ let p = yh ^?! path
 
       where f (xmin, xmax) d = T.pack (show xmin ++ "\t" ++ show xmax ++ "\t") <> printDist1D d
 
+
+yodaHisto1D :: Int -> Double -> Double -> YodaHisto1D
+yodaHisto1D n mn mx = annotated . Histo1D $ histogram (binD mn n mx) (V.replicate n mempty)
+
+
+addYH :: YodaHisto1D -> YodaHisto1D -> YodaHisto1D
+addYH yh yh' = yh & thing %~ addH (view thing yh')

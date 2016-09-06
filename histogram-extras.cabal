@@ -32,7 +32,7 @@ library
                      , cereal >=0.5 && <0.6
                      , cereal-text >=0.1
                      , semigroups >=0.18
-                     , unordered-containers >=0.2
+                     , containers >=0.5
                      , vector-th-unbox >=0.2
                      , histogram-fill >=0.8
                      , histogram-fill-cereal >=0.6

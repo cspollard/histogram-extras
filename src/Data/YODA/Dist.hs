@@ -19,9 +19,7 @@ import Data.Semigroup
 import Data.Text (Text)
 import qualified Data.Text as T
 
-import Data.Vector.Unboxed (Unbox)
-
-import Data.Vector.Unboxed.Deriving
+import Data.Serialize
 
 import Data.Weighted
 import Data.Fillable
@@ -155,17 +153,7 @@ instance Num a => Fillable (Dist2D a) where
                            & sumWXY +~ (w*x*y)
 
 
-derivingUnbox "Dist0D"
-    [t| forall a. Unbox a => Dist0D a -> Unwrapped (Dist0D a) |]
-    [| view _Wrapped' |]
-    [| view _Unwrapped' |]
 
-derivingUnbox "Dist1D"
-    [t| forall a. Unbox a => Dist1D a -> Unwrapped (Dist1D a) |]
-    [| view _Wrapped' |]
-    [| view _Unwrapped' |]
-
-derivingUnbox "Dist2D"
-    [t| forall a. Unbox a => Dist2D a -> Unwrapped (Dist2D a) |]
-    [| view _Wrapped' |]
-    [| view _Unwrapped' |]
+instance Serialize a => Serialize (Dist0D a) where
+instance Serialize a => Serialize (Dist1D a) where
+instance Serialize a => Serialize (Dist2D a) where
