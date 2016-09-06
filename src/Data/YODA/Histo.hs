@@ -43,6 +43,9 @@ newtype Histo1D b a = Histo1D { _hist :: Histogram Vector b (Dist1D a) } derivin
 
 makeLenses ''Histo1D
 
+instance (Show a, Show (BinValue b), Show b, Bin b) => Show (Histo1D b a) where
+    show = views hist show
+
 histData :: Bin b => Lens' (Histo1D b a) (Vector (Dist1D a))
 histData = hist . I.histData
 
@@ -82,9 +85,9 @@ fillHisto1D :: (Double, Double) -> YodaHisto1D -> YodaHisto1D
 fillHisto1D wx = over thing (fill wx)
 
 printHisto1D :: YodaHisto1D -> Text
-printHisto1D yh = T.unlines $ let p = yh ^?! path 
-                                  xl = yh ^?! xlabel
-                                  yl = yh ^?! ylabel
+printHisto1D yh = T.unlines $ let p = yh ^. path
+                                  xl = yh ^. xlabel
+                                  yl = yh ^. ylabel
                                   h = yh ^. thing
                                   bs = V.toList (binsList $ h ^. bins :: Vector (Double, Double))
                               in  [ "# BEGIN YODA_HISTO1D " <> p, "Path=" <> p, "Type=Histo1D"

@@ -3,6 +3,7 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Data.YODA.Profile ( Profile1D, prof, profData, bins, overflows
                          , YodaProfile1D, yodaProfile1D, fillProfile1D, printProfile1D
@@ -35,6 +36,9 @@ import qualified Data.YODA.Internal as I
 newtype Profile1D b a = Profile1D { _prof :: Histogram Vector b (Dist2D a) } deriving Generic
 
 makeLenses ''Profile1D
+
+instance (Show a, Show (BinValue b), Show b, Bin b) => Show (Profile1D b a) where
+    show = views prof show
 
 profData :: Bin b => Lens' (Profile1D b a) (Vector (Dist2D a))
 profData = prof . I.histData
