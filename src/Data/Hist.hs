@@ -88,19 +88,18 @@ printHist1D h = T.unlines $ "Total\tTotal\t" <> showBin (fold . view histData $ 
                                  Just (u, o) -> [ "Underflow\tUnderflow\t" <> showBin u
                                                 , "Overflow\tOverflow\t" <> showBin o
                                                 ]
-                           ++ zipWith f bs (views histData V.toList h)
-      where f (xmin, xmax) d = T.intercalate "\t"
-                                    $ [ T.pack $ show xmin
-                                      , T.pack $ show xmax
-                                      , showBin d
-                                      ]
+                          ++ zipWith f bs (views histData V.toList h)
 
-            showBin d = T.intercalate "\t" . map T.pack 
-                                    $ [ views (distW . sumW) show d
-                                      , views (distW . sumWW) show d
-                                      , views sumWX show d
-                                      , views sumWXX show d
-                                      , views (distW . nentries) show d
-                                      ]
+      where f (xmin, xmax) d = T.intercalate "\t" [ T.pack $ show xmin
+                                                  , T.pack $ show xmax
+                                                  , showBin d
+                                                  ]
+
+            showBin d = T.intercalate "\t" . map T.pack $ [ views (distW . sumW) show d
+                                                          , views (distW . sumWW) show d
+                                                          , views sumWX show d
+                                                          , views sumWXX show d
+                                                          , views (distW . nentries) show d
+                                                          ]
 
             bs = views bins (V.toList . binsList) h

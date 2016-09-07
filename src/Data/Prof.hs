@@ -57,8 +57,8 @@ overflows :: Bin b => Lens' (Prof1D b a) (Maybe (Dist2D a, Dist2D a))
 overflows = prof . I.overflows
 
 instance (Num a, Bin b, BinValue b ~ a) => Fillable (Prof1D b a) where
-    type FillVec (Prof1D b a) = (a, a, a)
-    (w, x, y) `fill` p = over prof (I.fill (w, x, y) x) p
+    type FillVec (Prof1D b a) = FillVec (Dist2D a)
+    (w, (x, y)) `fill` p = over prof (I.fill (w, (x, y)) x) p
 
 
 instance (Bin b, Serialize b, Serialize a) => Serialize (Prof1D b a) where
@@ -75,11 +75,11 @@ printProf1D h = T.unlines $ "Total\tTotal\t" <> showBin (fold . view profData $ 
                                                 , "Overflow\tOverflow\t" <> showBin o
                                                 ]
                            ++ zipWith f bs (views profData V.toList h)
-      where f (xmin, xmax) d = T.intercalate "\t"
-                                    $ [ T.pack $ show xmin
-                                      , T.pack $ show xmax
-                                      , showBin d
-                                      ]
+
+      where f (xmin, xmax) d = T.intercalate "\t" [ T.pack $ show xmin
+                                                  , T.pack $ show xmax
+                                                  , showBin d
+                                                  ]
 
             showBin d = T.intercalate "\t" . map T.pack 
                                     $ [ views (distX . distW . sumW) show d

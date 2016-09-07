@@ -3,7 +3,7 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Data.Annotated ( Annotated, annotated
+module Data.Annotated ( Annotated(..), annotated
                       , annots, noted
                       , path, xlabel, ylabel
                       ) where

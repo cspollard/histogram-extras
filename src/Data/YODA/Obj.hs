@@ -1,9 +1,18 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 
-module Data.YODA.Obj where
+module Data.YODA.Obj ( Obj(..), _H1DD, _P1DD, YodaObj
+                     , fillHist1D, yodaHist1D
+                     , fillProf1D, yodaProf1D
+                     , mergeYO, printYObj
+                     , module X
+                     ) where
 
 import Control.Lens
+
+import GHC.Generics
+import Data.Serialize
 
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -12,47 +21,62 @@ import Data.Semigroup ((<>))
 
 import Data.Hist
 import Data.Prof
-import Data.Annotated
+import Data.Annotated as X
+import Data.Weighted as X
+import Data.Fillable as X
 
 data Obj = H1DD (Hist1D BinD Double)
          | P1DD (Prof1D BinD Double)
+         deriving (Show, Generic)
+
+instance Serialize Obj where
 
 makePrisms ''Obj
 
 type YodaObj = Annotated Obj
 
+mergeYO :: YodaObj -> YodaObj -> YodaObj
+Annotated a (H1DD h) `mergeYO` Annotated _ (H1DD h') = Annotated a . H1DD $ addH h h'
+Annotated a (P1DD p) `mergeYO` Annotated _ (P1DD p') = Annotated a . P1DD $ addP p p'
+mergeYO _ _ = error "attempt to add two unrelated objects"
+
 fillHist1D :: (Double, Double) -> YodaObj -> YodaObj
 fillHist1D wx = over (noted . _H1DD) (fill wx)
+
+fillProf1D :: (Double, (Double, Double)) -> YodaObj -> YodaObj
+fillProf1D wxy = over (noted . _P1DD) (fill wxy)
 
 
 -- TODO
 -- path should be hard coded.
 
-printYP1DD :: YodaObj -> Text
-printYP1DD yo = T.unlines $ let p = yo ^. path
-                                xl = yo ^. xlabel
-                                yl = yo ^. ylabel
-                            in  [ "# BEGIN YODA_PROFILE1D " <> p, "Path=" <> p, "Type=Profile1D"
-                                , "XLabel=" <> xl, "YLabel=" <> yl
-                                , views (noted . _P1DD) printProf1D yo
-                                , "# END YODA_PROFILE1D", ""
-                                ]
+printYObj :: YodaObj -> Text
+printYObj yo = T.unlines $ case yo ^. noted of
+                                H1DD h -> [ "# BEGIN YODA_HISTO1D " <> pa
+                                          , "Path=" <> pa, "Type=Histo1D"
+                                          , "XLabel=" <> xl, "YLabel=" <> yl
+                                          , printHist1D h
+                                          , "# END YODA_HISTO1D", ""
+                                          ]
+
+                                P1DD p -> [ "# BEGIN YODA_PROFILE1D " <> pa
+                                          , "Path=" <> pa, "Type=Profile1D"
+                                          , "XLabel=" <> xl, "YLabel=" <> yl
+                                          , printProf1D p
+                                          , "# END YODA_PROFILE1D", ""
+                                          ]
+
+    where pa = yo ^. path
+          xl = yo ^. xlabel
+          yl = yo ^. ylabel
 
 
-printYH1DD :: YodaObj -> Text
-printYH1DD yo = T.unlines $ let p = yo ^. path
-                                xl = yo ^. xlabel
-                                yl = yo ^. ylabel
-                            in  [ "# BEGIN YODA_HISTO1D " <> p, "Path=" <> p, "Type=Histo1D"
-                                , "XLabel=" <> xl, "YLabel=" <> yl
-                                , views (noted . _H1DD) printHist1D yo
-                                , "# END YODA_HISTO1D", ""
-                                ]
 
+yodaHist1D :: Int -> Double -> Double -> YodaObj
+yodaHist1D n mn mx = annotated . H1DD $ hist1D (binD mn n mx)
 
-
--- yodaHist1D :: Int -> Double -> Double -> YodaHist1D
--- yodaHist1D n mn mx = annotated . Hist1D $ histogram (binD mn n mx) (V.replicate n mempty)
+yodaProf1D :: Int -> Double -> Double -> YodaObj
+yodaProf1D n mn mx = annotated . P1DD $ prof1D (binD mn n mx)
 
 
 -- addYH :: YodaHist1D -> YodaHist1D -> YodaHist1D
