@@ -2,7 +2,7 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Data.YODA.Internal where
+module Data.Hist.Internal where
 
 import Control.Lens
 

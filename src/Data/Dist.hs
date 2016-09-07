@@ -6,20 +6,17 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Data.YODA.Dist ( Dist0D, sumW, sumWW, nentries
-                      , Dist1D, sumX, sumWX, distW
-                      , Dist2D, distX, distY, sumWXY
-                      , printDist0D, printDist1D
-                      ) where
+module Data.Dist ( Dist0D, sumW, sumWW, nentries
+                 , Dist1D, sumWX, sumWXX, distW
+                 , Dist2D, distX, distY, sumWXY
+                 ) where
 
 import Control.Lens
+
 import GHC.Generics
+import Data.Serialize
 
 import Data.Semigroup
-import Data.Text (Text)
-import qualified Data.Text as T
-
-import Data.Serialize
 
 import Data.Weighted
 import Data.Fillable
@@ -64,26 +61,19 @@ instance Num a => Fillable (Dist0D a) where
                    & sumWW +~ (w*w)
 
 
-printDist0D :: Show a => Dist0D a -> Text
-printDist0D (Dist0D w ww n) = T.concat [ T.pack (show w), "\t"
-                                       , T.pack (show ww), "\t"
-                                       , T.pack (show n)
-                                       ]
-
-
 data Dist1D a = Dist1D { _distW :: !(Dist0D a)
-                       , _sumX :: !a
                        , _sumWX :: !a
+                       , _sumWXX :: !a
                        } deriving (Generic, Show)
 
 makeLenses ''Dist1D
 
 instance Wrapped (Dist1D a) where
     type Unwrapped (Dist1D a) = (Dist0D a, a, a)
-    _Wrapped' = iso (tuple3 <$> _distW <*> _sumX <*> _sumWX) (Dist1D <$> view _1 <*> view _2 <*> view _3)
+    _Wrapped' = iso (tuple3 <$> _distW <*> _sumWX <*> _sumWXX) (Dist1D <$> view _1 <*> view _2 <*> view _3)
 
 instance Num a => Semigroup (Dist1D a) where
-    Dist1D dw sx swx <> Dist1D dw' sx' swx' = Dist1D (dw<>dw') (sx+sx') (swx+swx')
+    Dist1D dw swx swxx <> Dist1D dw' swx' swxx' = Dist1D (dw<>dw') (swx+swx') (swxx+swxx')
 
 instance Num a => Monoid (Dist1D a) where
     mempty = Dist1D mempty 0 0
@@ -94,24 +84,16 @@ instance (Num a, Fractional a) => Weighted (Dist1D a) where
     type Weight (Dist1D a) = a
     d `scaledBy` w = d & distW %~ (`scaledBy` w)
                        & sumWX *~ w
+                       & sumWXX *~ w
 
-    integral = lens (view $ distW . integral) (\d w -> let w' = d ^. integral in d & (distW . integral) .~ w & sumWX *~ (w'/w))
+    integral = lens (view $ distW . integral) (\d w -> let w' = d ^. integral in d `scaledBy` (w/w'))
 
 
 instance Num a => Fillable (Dist1D a) where
     type FillVec (Dist1D a) = (a, a)
     (w, x) `fill` d = d & distW %~ fill w
-                        & sumX +~ x
                         & sumWX +~ (w*x)
-
-
-printDist1D :: Show a => Dist1D a -> Text
-printDist1D (Dist1D dw sx swx) = T.concat [ T.pack (views sumW show dw), "\t"
-                                          , T.pack (views sumWW show dw), "\t"
-                                          , T.pack (show sx), "\t"
-                                          , T.pack (show swx)
-                                          , T.pack (views nentries show dw), "\t"
-                                          ]
+                        & sumWXX +~ (w*x*x)
 
 
 data Dist2D a = Dist2D { _distX :: !(Dist1D a)
@@ -140,10 +122,7 @@ instance (Num a, Fractional a) => Weighted (Dist2D a) where
                        & distY %~ (`scaledBy` w)
                        & sumWXY *~ w
 
-    integral = lens (view $ distX . integral) (\d w -> let w' = d ^. integral
-                                                       in  d & (distX . integral) .~ w
-                                                             & (distY . integral) .~ w
-                                                             & sumWXY *~ (w'/w))
+    integral = lens (view $ distX . integral) (\d w -> let w' = d ^. integral in d `scaledBy` (w/w'))
 
 
 instance Num a => Fillable (Dist2D a) where
@@ -151,7 +130,6 @@ instance Num a => Fillable (Dist2D a) where
     (w, x, y) `fill` d = d & distX %~ fill (w, x)
                            & distY %~ fill (w, y)
                            & sumWXY +~ (w*x*y)
-
 
 
 instance Serialize a => Serialize (Dist0D a) where

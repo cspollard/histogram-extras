@@ -3,10 +3,10 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Data.YODA.Annotated ( Annotated, annotated
-                           , annots, thing
-                           , path, xlabel, ylabel
-                           ) where
+module Data.Annotated ( Annotated, annotated
+                      , annots, noted
+                      , path, xlabel, ylabel
+                      ) where
 
 
 import Control.Lens
@@ -19,7 +19,7 @@ import Data.Serialize
 -- NB
 -- this is strict in it's thing.
 data Annotated a = Annotated { _annots :: Map Text Text
-                             , _thing :: !a
+                             , _noted :: !a
                              } deriving (Generic, Show)
 
 instance Serialize a => Serialize (Annotated a) where

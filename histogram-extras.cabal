@@ -16,14 +16,15 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Data.YODA.Annotated
-                     , Data.YODA.Histo
-                     , Data.YODA.Profile
-                     , Data.YODA.Dist
+  exposed-modules:     Data.Annotated
+                     , Data.Hist
+                     , Data.Prof
+                     , Data.Dist
                      , Data.Weighted
                      , Data.Fillable
+                     , Data.YODA.Obj
 
-  other-modules:       Data.YODA.Internal
+  other-modules:       Data.Hist.Internal
   other-extensions:    OverloadedStrings, DeriveGeneric, TypeFamilies, TemplateHaskell, NoMonomorphismRestriction, FlexibleContexts
   build-depends:       base >=4.8 && <4.9
                      , lens >=4.13 && <4.14
