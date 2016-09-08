@@ -36,6 +36,7 @@ library
                      , containers >=0.5
                      , histogram-fill >=0.8
                      , histogram-fill-cereal >=0.6
+                     , vector-th-unbox >=0.2 && <=0.3
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -Wall

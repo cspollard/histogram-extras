@@ -22,10 +22,9 @@ import qualified Data.Text as T
 import Data.Histogram.Generic (Histogram, histogram)
 import Data.Histogram.Bin (binsList, BinEq(..), BinD, Bin(..), IntervalBin(..), binD)
 
-import Data.Vector (Vector)
-import qualified Data.Vector as V
+import Data.Vector.Unboxed (Vector, Unbox)
+import qualified Data.Vector.Unboxed as V
 
-import Data.Foldable (fold)
 import Data.List (mapAccumL)
 import Data.Semigroup ((<>))
 
@@ -40,49 +39,52 @@ import qualified Data.Hist.Internal as I
 
 newtype Hist1D b a = Hist1D { _hist :: Histogram Vector b (Dist1D a) } deriving Generic
 
-hist1D :: (Bin b, Num a) => b -> Hist1D b a
+hist1D :: (Bin b, Num a, Unbox a) => b -> Hist1D b a
 hist1D b = Hist1D $ histogram b (V.replicate (nBins b) mempty)
 
 
 makeLenses ''Hist1D
 
-instance (Show a, Show (BinValue b), Show b, Bin b) => Show (Hist1D b a) where
+instance (Show a, Unbox a, Show (BinValue b), Show b, Bin b) => Show (Hist1D b a) where
     show = views hist show
 
-histData :: Bin b => Lens' (Hist1D b a) (Vector (Dist1D a))
+histData :: (Bin b, Unbox a) => Lens' (Hist1D b a) (Vector (Dist1D a))
 histData = hist . I.histData
 
-bins :: Bin b => Lens' (Hist1D b a) b
+bins :: (Bin b, Unbox a) => Lens' (Hist1D b a) b
 bins = hist . I.bins
 
-overflows :: Bin b => Lens' (Hist1D b a) (Maybe (Dist1D a, Dist1D a))
+overflows :: (Bin b, Unbox a) => Lens' (Hist1D b a) (Maybe (Dist1D a, Dist1D a))
 overflows = hist . I.overflows
 
 
-instance (Num a, Bin b, BinValue b ~ a) => Fillable (Hist1D b a) where
+instance (Num a, Unbox a, Bin b, BinValue b ~ a) => Fillable (Hist1D b a) where
     type FillVec (Hist1D b a) = (a, a)
-    fill (w, x) h = over hist (I.fill (w, x) x) h
+    fill (w, x) = over hist (I.fill (w, x) x)
 
 
-instance (Num a, Fractional a, Bin b) => Weighted (Hist1D b a) where
+instance (Num a, Fractional a, Unbox a, Bin b) => Weighted (Hist1D b a) where
 
     type Weight (Hist1D b a) = a
 
-    h `scaledBy` w = over (histData . traverse) (`scaledBy` w) h
+    h `scaledBy` w = over histData (V.map (`scaledBy` w)) h
 
-    integral = lens (view integral . fold . view histData) f
-        where f h w = let (s, xs) = mapAccumL (\s' x -> (s' <> x, x `scaledBy` (w / view integral s))) mempty . view histData $ h
-                      in  set histData xs h
+    integral = lens (view integral . V.foldl (<>) mempty . view histData) f
+        -- would strongly prefer to use mapAccumL
+        -- but not implemented for Unboxed vectors
+        where f h w = let (s, xs) = mapAccumL (\s' x -> (s' <> x, x `scaledBy` (w / view integral s))) mempty . V.toList . view histData $ h
+                      in  set histData (V.fromList xs) h
 
-instance (Bin b, Serialize b, Serialize a) => Serialize (Hist1D b a) where
+instance (Bin b, Serialize b, Serialize a, Unbox a) => Serialize (Hist1D b a) where
 
 
-addH :: (Num a, Bin b, BinEq b) => Hist1D b a -> Hist1D b a -> Hist1D b a
+addH :: (Num a, Unbox a, Bin b, BinEq b) => Hist1D b a -> Hist1D b a -> Hist1D b a
 addH h h' = over hist (views hist I.hadd h') h
 
 
-printHist1D :: (Show a, Num a, Bin b, IntervalBin b, Show (BinValue b)) => Hist1D b a -> Text
-printHist1D h = T.unlines $ "Total\tTotal\t" <> showBin (fold . view histData $ h)
+printHist1D :: (Show a, Num a, Unbox a, Bin b, IntervalBin b, Show (BinValue b), Unbox (BinValue b))
+            => Hist1D b a -> Text
+printHist1D h = T.unlines $ "Total\tTotal\t" <> showBin (V.foldl (<>) mempty . view histData $ h)
                           : case view overflows h of
                                  Nothing -> []
                                  Just (u, o) -> [ "Underflow\tUnderflow\t" <> showBin u

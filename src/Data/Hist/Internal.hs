@@ -22,10 +22,8 @@ import qualified Data.Fillable as F
 
 
 -- strict version of modify
-modify' :: Vector v a => (a -> a) -> Int -> v a -> v a
-modify' f i = V.modify $ \v -> do y <- MV.read v i
-                                  MV.write v i $! f y
-                                  return ()
+modify :: Vector v a => (a -> a) -> Int -> v a -> v a
+modify f i v = let x = (v V.! i) in v V.// [(i, x `seq` f x)]
 
 
 histData :: (Vector v a, Bin b) => Lens' (Histogram v b a) (v a)
@@ -50,8 +48,9 @@ hadd _ _                               = error "attempt to add histograms with d
 
 fill :: (Vector v a, Bin b, Fillable a) => FillVec a -> BinValue b -> Histogram v b a -> Histogram v b a
 fill wxs x h = case ixH of
-                    Just i' -> over histData (modify' (F.fill wxs) i') h
+                    Just i' -> over histData (modify (F.fill wxs) i') h
                     Nothing -> h
+
     where b = view bins h
           ou = view overflows h
           n = H.nBins b
