@@ -58,7 +58,7 @@ overflows = prof . I.overflows
 
 instance (Num a, Bin b, BinValue b ~ a) => Fillable (Prof1D b a) where
     type FillVec (Prof1D b a) = FillVec (Dist2D a)
-    (w, (x, y)) `fill` p = over prof (I.fill (w, (x, y)) x) p
+    fill (w, (x, y)) p = over prof (I.fill (w, (x, y)) x) p
 
 
 instance (Bin b, Serialize b, Serialize a) => Serialize (Prof1D b a) where

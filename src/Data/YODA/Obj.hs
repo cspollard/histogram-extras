@@ -25,8 +25,8 @@ import Data.Annotated as X
 import Data.Weighted as X
 import Data.Fillable as X
 
-data Obj = H1DD (Hist1D BinD Double)
-         | P1DD (Prof1D BinD Double)
+data Obj = H1DD !(Hist1D BinD Double)
+         | P1DD !(Prof1D BinD Double)
          deriving (Show, Generic)
 
 instance Serialize Obj where

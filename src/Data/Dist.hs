@@ -57,9 +57,9 @@ instance (Num a, Fractional a) => Weighted (Dist0D a) where
 
 instance Num a => Fillable (Dist0D a) where
     type FillVec (Dist0D a) = a
-    w `fill` d = d & sumW +~ w
-                   & sumWW +~ (w*w)
-                   & nentries +~ 1
+    fill w d = d & sumW +~ w
+                 & sumWW +~ (w*w)
+                 & nentries +~ 1
 
 
 data Dist1D a = Dist1D { _distW :: !(Dist0D a)
@@ -92,9 +92,9 @@ instance (Num a, Fractional a) => Weighted (Dist1D a) where
 
 instance Num a => Fillable (Dist1D a) where
     type FillVec (Dist1D a) = (a, a)
-    (w, x) `fill` d = d & distW %~ fill w
-                        & sumWX +~ (w*x)
-                        & sumWXX +~ (w*x*x)
+    fill (w, x) d = d & distW %~ fill w
+                      & sumWX +~ (w*x)
+                      & sumWXX +~ (w*x*x)
 
 
 data Dist2D a = Dist2D { _distX :: !(Dist1D a)
@@ -128,9 +128,9 @@ instance (Num a, Fractional a) => Weighted (Dist2D a) where
 
 instance Num a => Fillable (Dist2D a) where
     type FillVec (Dist2D a) = (a, (a, a))
-    (w, (x, y)) `fill` d = d & distX %~ fill (w, x)
-                             & distY %~ fill (w, y)
-                             & sumWXY +~ (w*x*y)
+    fill (w, (x, y)) d = d & distX %~ fill (w, x)
+                           & distY %~ fill (w, y)
+                           & sumWXY +~ (w*x*y)
 
 
 instance Serialize a => Serialize (Dist0D a) where

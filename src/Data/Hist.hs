@@ -61,7 +61,7 @@ overflows = hist . I.overflows
 
 instance (Num a, Bin b, BinValue b ~ a) => Fillable (Hist1D b a) where
     type FillVec (Hist1D b a) = (a, a)
-    (w, x) `fill` p = over hist (I.fill (w, x) x) p
+    fill (w, x) h = over hist (I.fill (w, x) x) h
 
 
 instance (Num a, Fractional a, Bin b) => Weighted (Hist1D b a) where
