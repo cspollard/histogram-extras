@@ -11,17 +11,11 @@ module Data.Dist ( Dist0D, sumW, sumWW, nentries
                  , Dist2D, distX, distY, sumWXY
                  ) where
 
-import Debug.Trace
-
 import Control.Lens
-
-import Data.Vector.Unboxed
-import Data.Vector.Unboxed.Deriving
+import Data.Semigroup
 
 import GHC.Generics
 import Data.Serialize
-
-import Data.Semigroup
 
 import Data.Weighted
 import Data.Fillable
@@ -29,7 +23,7 @@ import Data.Fillable
 
 data Dist0D a = Dist0D { _sumW :: !a
                        , _sumWW :: !a
-                       , _nentries :: Int
+                       , _nentries :: !Int
                        } deriving (Generic, Show)
 
 makeLenses ''Dist0D
@@ -65,7 +59,6 @@ instance Num a => Fillable (Dist0D a) where
     fill w d = d & sumW +~ w
                  & sumWW +~ (w*w)
                  & nentries +~ 1
-                 & traceShow "filled Dist0D!"
 
 
 data Dist1D a = Dist1D { _distW :: !(Dist0D a)
@@ -142,18 +135,3 @@ instance Num a => Fillable (Dist2D a) where
 instance Serialize a => Serialize (Dist0D a) where
 instance Serialize a => Serialize (Dist1D a) where
 instance Serialize a => Serialize (Dist2D a) where
-
-derivingUnbox "Dist0D"
-    [t| forall a. Unbox a => Dist0D a -> Unwrapped (Dist0D a) |]
-    [| view _Wrapped' |]
-    [| view _Unwrapped' |]
-
-derivingUnbox "Dist1D"
-    [t| forall a. Unbox a => Dist1D a -> Unwrapped (Dist1D a) |]
-    [| view _Wrapped' |]
-    [| view _Unwrapped' |]
-
-derivingUnbox "Dist2D"
-    [t| forall a. Unbox a => Dist2D a -> Unwrapped (Dist2D a) |]
-    [| view _Wrapped' |]
-    [| view _Unwrapped' |]

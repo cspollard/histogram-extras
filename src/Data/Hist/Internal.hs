@@ -13,7 +13,6 @@ import Data.Histogram.Bin (Bin(..), BinEq(..))
 
 import Data.Vector.Generic (Vector)
 import qualified Data.Vector.Generic as V
-import qualified Data.Vector.Generic.Mutable as MV
 
 import Data.Semigroup (Semigroup(..))
 
@@ -21,9 +20,9 @@ import Data.Fillable (Fillable, FillVec)
 import qualified Data.Fillable as F
 
 
--- strict version of modify
+-- strictly modify a vector.
 modify :: Vector v a => (a -> a) -> Int -> v a -> v a
-modify f i v = let x = (v V.! i) in v V.// [(i, x `seq` f x)]
+modify f i v = let v' = v V.// [(i, f $ v V.! i)] in (v' V.! i) `seq` v'
 
 
 histData :: (Vector v a, Bin b) => Lens' (Histogram v b a) (v a)
