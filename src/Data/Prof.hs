@@ -61,10 +61,10 @@ instance (Num a, Bin b, BinValue b ~ a) => Fillable (Prof1D b a) where
 instance (Bin b, Serialize b, Serialize a) => Serialize (Prof1D b a) where
 
 
-addP :: (Num a, Bin b, BinEq b) => Prof1D b a -> Prof1D b a -> Prof1D b a
+addP :: (Num a, BinEq b) => Prof1D b a -> Prof1D b a -> Prof1D b a
 addP p p' = over prof (views prof I.hadd p') p
 
-printProf1D :: (Show a, Num a, Bin b, IntervalBin b, Show (BinValue b))
+printProf1D :: (Show a, Num a, IntervalBin b, Show (BinValue b))
             => Prof1D b a -> Text
 printProf1D h = T.unlines $ "Total\tTotal\t" <> showBin (fold . view profData $ h)
                           : case view overflows h of

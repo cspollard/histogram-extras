@@ -75,11 +75,11 @@ instance (Num a, Fractional a, Bin b) => Weighted (Hist1D b a) where
 instance (Bin b, Serialize b, Serialize a) => Serialize (Hist1D b a) where
 
 
-addH :: (Num a, Bin b, BinEq b) => Hist1D b a -> Hist1D b a -> Hist1D b a
+addH :: (Num a, BinEq b) => Hist1D b a -> Hist1D b a -> Hist1D b a
 addH h h' = over hist (views hist I.hadd h') h
 
 
-printHist1D :: (Show a, Num a, Bin b, IntervalBin b, Show (BinValue b))
+printHist1D :: (Show a, Num a, IntervalBin b, Show (BinValue b))
             => Hist1D b a -> Text
 printHist1D h = T.unlines $ "Total\tTotal\t" <> showBin (fold . view histData $ h)
                           : case view overflows h of

@@ -6,7 +6,7 @@ import Control.Lens
 
 class Weighted a where
     type Weight a :: *
-    scaledBy :: Weighted a => a -> Weight a -> a
+    scaledBy :: a -> Weight a -> a
     integral :: Lens' a (Weight a)
 
 instance Weighted Int where
