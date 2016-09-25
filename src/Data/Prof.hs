@@ -34,7 +34,7 @@ import Data.Dist as X
 import qualified Data.Hist.Internal as I
 
 
-newtype Prof1D b a = Prof1D { _prof :: Histogram Vector b (Dist2D a) } deriving Generic
+newtype Prof1D b a = Prof1D { _prof :: !(Histogram Vector b (Dist2D a)) } deriving Generic
 
 prof1D :: (Bin b, Num a) => b -> Prof1D b a
 prof1D b = Prof1D $ histogram b (V.replicate (nBins b) mempty)
