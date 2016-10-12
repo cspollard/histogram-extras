@@ -20,6 +20,9 @@ import Data.Serialize
 import Data.Weighted
 import Data.Fillable
 
+import Data.Vector.Unboxed.Deriving
+import Data.Vector.Unboxed
+
 
 data Dist0D a = Dist0D { _sumW :: !a
                        , _sumWW :: !a
@@ -135,3 +138,18 @@ instance Num a => Fillable (Dist2D a) where
 instance Serialize a => Serialize (Dist0D a) where
 instance Serialize a => Serialize (Dist1D a) where
 instance Serialize a => Serialize (Dist2D a) where
+
+derivingUnbox "Dist0D"
+    [t| forall a. (Unbox a) => Dist0D a -> (a, a, Int) |]
+    [| view _Wrapped' |]
+    [| view _Unwrapped' |]
+
+derivingUnbox "Dist1D"
+    [t| forall a. (Unbox a) => Dist1D a -> (Dist0D a, a, a) |]
+    [| view _Wrapped' |]
+    [| view _Unwrapped' |]
+
+derivingUnbox "Dist2D"
+    [t| forall a. (Unbox a) => Dist2D a -> (Dist1D a, Dist1D a, a) |]
+    [| view _Wrapped' |]
+    [| view _Unwrapped' |]

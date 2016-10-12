@@ -13,16 +13,12 @@ import Data.Histogram.Bin (Bin(..), BinEq(..))
 
 import Data.Vector.Generic (Vector)
 import qualified Data.Vector.Generic as V
+import qualified Data.Vector.Generic.Mutable as MV
 
 import Data.Semigroup (Semigroup(..))
 
 import Data.Fillable (Fillable, FillVec)
 import qualified Data.Fillable as F
-
-
--- strictly modify a vector.
-modify :: Vector v a => (a -> a) -> Int -> v a -> v a
-modify f i v = let v' = v V.// [(i, f $ v V.! i)] in (v' V.! i) `seq` v'
 
 
 histData :: (Vector v a, Bin b) => Lens' (Histogram v b a) (v a)
@@ -47,7 +43,7 @@ hadd _ _                               = error "attempt to add histograms with d
 
 fill :: (Vector v a, Bin b, Fillable a) => FillVec a -> BinValue b -> Histogram v b a -> Histogram v b a
 fill wxs x h = case ixH of
-                    Just i' -> over histData (modify (F.fill wxs) i') h
+                    Just i' -> over histData (V.modify (\mv -> MV.write mv i' . F.fill wxs =<< MV.read mv i')) h
                     Nothing -> h
 
     where b = view bins h
