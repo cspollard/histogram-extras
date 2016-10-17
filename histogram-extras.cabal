@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                histogram-extras
-version:             0.2.0.0
+version:             0.2.1.0
 -- synopsis:            
 -- description:         
 license:             BSD3
@@ -22,6 +22,7 @@ library
                      , Data.Dist
                      , Data.Weighted
                      , Data.Fillable
+                     , Data.MultiFill
                      , Data.YODA.Obj
 
   other-modules:       Data.Hist.Internal
