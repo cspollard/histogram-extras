@@ -2,19 +2,21 @@
 
 module Data.Fillable where
 
-class Fillable a where
+import Data.Weighted
+
+class Weighted a => Fillable a where
     type FillVec a :: *
-    fill :: FillVec a -> a -> a
+    filling :: Weight a -> FillVec a -> a -> a
 
 
 instance Fillable Int where
     type FillVec Int = Int
-    fill = (+)
+    filling x _ = (+ x)
 
 instance Fillable Float where
     type FillVec Float = Float
-    fill = (+)
+    filling x _ = (+ x)
 
 instance Fillable Double where
     type FillVec Double = Double
-    fill = (+)
+    filling x _ = (+ x)

@@ -15,6 +15,7 @@ module Data.Prof ( Prof1D, prof, profData, bins, overflows
 import Control.Lens
 import Data.Foldable (fold)
 import Data.Semigroup ((<>))
+import Data.List (mapAccumL)
 
 import Data.Serialize
 import GHC.Generics
@@ -29,6 +30,7 @@ import Data.Histogram.Bin (binsList, BinEq(..), BinD, Bin(..), IntervalBin(..), 
 import Data.Vector.Unboxed (Vector, Unbox)
 import qualified Data.Vector.Unboxed as V
 
+import Data.Weighted as X
 import Data.Fillable as X
 import Data.Dist as X
 import qualified Data.Hist.Internal as I
@@ -53,9 +55,32 @@ bins = prof . I.bins
 overflows :: (Bin b, Unbox a) => Lens' (Prof1D b a) (Maybe (Dist2D a, Dist2D a))
 overflows = prof . I.overflows
 
-instance (Num a, Unbox a, Bin b, BinValue b ~ a) => Fillable (Prof1D b a) where
+
+instance (Fractional a, Unbox a, Bin b)
+    => Weighted (Prof1D b a) where
+
+    type Weight (Prof1D b a) = a
+
+    scaling w = over profData (V.map $ scaling w)
+
+    integral = lens (view integral . V.foldr (<>) mempty . view profData) f
+        where
+            f :: (Fractional a, Unbox a, Bin b)
+              => Prof1D b a -> Weight (Prof1D b a) -> Prof1D b a
+            f h w = let (s, xs) =
+                            mapAccumL (\s' x -> (s' <> x, scaling (w / view integral s) x)) mempty
+                                . V.toList
+                                . view profData 
+                                $ h
+                      in  set profData (V.fromList xs) h
+
+
+
+instance (Fractional a, Unbox a, Bin b, BinValue b ~ FillVec (Dist1D a))
+    => Fillable (Prof1D b a) where
+
     type FillVec (Prof1D b a) = FillVec (Dist2D a)
-    fill (w, (x, y)) = over prof (I.fill (w, (x, y)) x)
+    filling w xy@(x, _) = over prof (I.filling w xy x)
 
 
 instance (Bin b, Serialize b, Serialize a, Unbox a) => Serialize (Prof1D b a) where

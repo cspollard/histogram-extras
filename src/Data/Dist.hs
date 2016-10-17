@@ -38,30 +38,37 @@ tuple3 x y z = (x, y, z)
 
 instance Wrapped (Dist0D a) where
     type Unwrapped (Dist0D a) = (a, a, Int)
-    _Wrapped' = iso (tuple3 <$> _sumW <*> _sumWW <*> _nentries) (Dist0D <$> view _1 <*> view _2 <*> view _3)
+    _Wrapped' = iso
+        (tuple3 <$> _sumW <*> _sumWW <*> _nentries)
+        (Dist0D <$> view _1 <*> view _2 <*> view _3)
 
 
 instance Num a => Semigroup (Dist0D a) where
-    Dist0D w ww n <> Dist0D w' ww' n' = Dist0D (w+w') (ww+ww') (n+n')
+    Dist0D w ww n <> Dist0D w' ww' n' =
+        Dist0D (w+w') (ww+ww') (n+n')
 
 instance Num a => Monoid (Dist0D a) where
     mempty = Dist0D 0 0 0
     mappend = (<>)
 
 
-instance (Num a, Fractional a) => Weighted (Dist0D a) where
+instance Fractional a => Weighted (Dist0D a) where
     type Weight (Dist0D a) = a
-    d `scaledBy` w = d & sumW *~ w
-                       & sumWW *~ (w*w)
+    scaling w d = d
+        & sumW *~ w
+        & sumWW *~ (w*w)
 
-    integral = lens (view sumW) (\(Dist0D sw sww n) w -> Dist0D w (sww*(w/sw)^(2::Int)) n)
+    integral = lens
+        (view sumW)
+        (\(Dist0D sw sww n) w -> Dist0D w (sww*(w/sw)^(2::Int)) n)
 
 
-instance Num a => Fillable (Dist0D a) where
-    type FillVec (Dist0D a) = a
-    fill w d = d & sumW +~ w
-                 & sumWW +~ (w*w)
-                 & nentries +~ 1
+instance Fractional a => Fillable (Dist0D a) where
+    type FillVec (Dist0D a) = ()
+    filling w () d = d
+        & sumW +~ w
+        & sumWW +~ (w*w)
+        & nentries +~ 1
 
 
 data Dist1D a = Dist1D { _distW :: !(Dist0D a)
@@ -73,30 +80,37 @@ makeLenses ''Dist1D
 
 instance Wrapped (Dist1D a) where
     type Unwrapped (Dist1D a) = (Dist0D a, a, a)
-    _Wrapped' = iso (tuple3 <$> _distW <*> _sumWX <*> _sumWXX) (Dist1D <$> view _1 <*> view _2 <*> view _3)
+    _Wrapped' = iso
+        (tuple3 <$> _distW <*> _sumWX <*> _sumWXX)
+        (Dist1D <$> view _1 <*> view _2 <*> view _3)
 
 instance Num a => Semigroup (Dist1D a) where
-    Dist1D dw swx swxx <> Dist1D dw' swx' swxx' = Dist1D (dw<>dw') (swx+swx') (swxx+swxx')
+    Dist1D dw swx swxx <> Dist1D dw' swx' swxx' =
+        Dist1D (dw<>dw') (swx+swx') (swxx+swxx')
 
 instance Num a => Monoid (Dist1D a) where
     mempty = Dist1D mempty 0 0
     mappend = (<>)
 
 
-instance (Num a, Fractional a) => Weighted (Dist1D a) where
+instance Fractional a => Weighted (Dist1D a) where
     type Weight (Dist1D a) = a
-    d `scaledBy` w = d & distW %~ (`scaledBy` w)
-                       & sumWX *~ w
-                       & sumWXX *~ w
+    scaling w d = d
+        & distW %~ scaling w
+        & sumWX *~ w
+        & sumWXX *~ w
 
-    integral = lens (view $ distW . integral) (\d w -> let w' = d ^. integral in d `scaledBy` (w/w'))
+    integral = lens
+        (view $ distW . integral)
+        (\d w -> let w' = d ^. integral in scaling (w/w') d)
 
 
-instance Num a => Fillable (Dist1D a) where
-    type FillVec (Dist1D a) = (a, a)
-    fill (w, x) d = d & distW %~ fill w
-                      & sumWX +~ (w*x)
-                      & sumWXX +~ (w*x*x)
+instance Fractional a => Fillable (Dist1D a) where
+    type FillVec (Dist1D a) = a
+    filling w x d = d
+        & distW %~ filling w ()
+        & sumWX +~ (w*x)
+        & sumWXX +~ (w*x*x)
 
 
 data Dist2D a = Dist2D { _distX :: !(Dist1D a)
@@ -119,20 +133,22 @@ instance Num a => Monoid (Dist2D a) where
     mappend = (<>)
 
 
-instance (Num a, Fractional a) => Weighted (Dist2D a) where
+instance Fractional a => Weighted (Dist2D a) where
     type Weight (Dist2D a) = a
-    d `scaledBy` w = d & distX %~ (`scaledBy` w)
-                       & distY %~ (`scaledBy` w)
-                       & sumWXY *~ w
+    scaling w d = d
+        & distX %~ scaling w
+        & distY %~ scaling w
+        & sumWXY *~ w
 
-    integral = lens (view $ distX . integral) (\d w -> let w' = d ^. integral in d `scaledBy` (w/w'))
+    integral = lens (view $ distX . integral) (\d w -> let w' = d ^. integral in scaling (w/w') d)
 
 
-instance Num a => Fillable (Dist2D a) where
-    type FillVec (Dist2D a) = (a, (a, a))
-    fill (w, (x, y)) d = d & distX %~ fill (w, x)
-                           & distY %~ fill (w, y)
-                           & sumWXY +~ (w*x*y)
+instance Fractional a => Fillable (Dist2D a) where
+    type FillVec (Dist2D a) = (a, a)
+    filling w (x, y) d = d
+        & distX %~ filling w x
+        & distY %~ filling w y
+        & sumWXY +~ (w*x*y)
 
 
 instance Serialize a => Serialize (Dist0D a) where

@@ -30,8 +30,8 @@ import qualified Data.Vector.Unboxed as V
 import Data.Histogram (Histogram, histogram)
 import Data.Histogram.Bin (binsList, BinEq(..), BinD, Bin(..), IntervalBin(..), binD)
 
-import Data.Fillable as X
 import Data.Weighted as X
+import Data.Fillable as X
 import Data.Dist as X
 import qualified Data.Hist.Internal as I
 
@@ -41,11 +41,12 @@ newtype Hist1D b a = Hist1D { _hist :: Histogram b (Dist1D a) } deriving Generic
 hist1D :: (Bin b, Num a, Unbox a) => b -> Hist1D b a
 hist1D b = Hist1D $ histogram b (V.replicate (nBins b) mempty)
 
-
 makeLenses ''Hist1D
 
 instance (Show a, Unbox a, Show (BinValue b), Show b, Bin b) => Show (Hist1D b a) where
     show = views hist show
+
+instance (Bin b, Serialize b, Serialize a, Unbox a) => Serialize (Hist1D b a) where
 
 histData :: (Bin b, Unbox a) => Lens' (Hist1D b a) (Vector (Dist1D a))
 histData = hist . I.histData
@@ -57,24 +58,26 @@ overflows :: (Bin b, Unbox a) => Lens' (Hist1D b a) (Maybe (Dist1D a, Dist1D a))
 overflows = hist . I.overflows
 
 
-instance (Num a, Unbox a, Bin b, BinValue b ~ a) => Fillable (Hist1D b a) where
-    type FillVec (Hist1D b a) = (a, a)
-    fill (w, x) = over hist (I.fill (w, x) x)
+instance (Fractional a, Unbox a, Bin b)
+    => Weighted (Hist1D b a) where
 
-
-instance (Num a, Fractional a, Unbox a, Bin b) => Weighted (Hist1D b a) where
     type Weight (Hist1D b a) = a
 
-    h `scaledBy` w = over histData (V.map (`scaledBy` w)) h
+    scaling w = over histData (V.map $ scaling w)
 
     integral = lens (view integral . fold . V.toList . view histData) f
         where f h w = let (s, xs) = h &
-                            mapAccumL (\s' x -> (s' <> x, x `scaledBy` (w / view integral s))) mempty
+                            mapAccumL (\s' x -> (s' <> x, scaling (w / view integral s) x)) mempty
                             . V.toList
                             . view histData
                       in  set histData (V.fromList xs) h
 
-instance (Bin b, Serialize b, Serialize a, Unbox a) => Serialize (Hist1D b a) where
+
+instance (Fractional a, Unbox a, Bin b, BinValue b ~ FillVec (Dist1D a))
+    => Fillable (Hist1D b a) where
+
+    type FillVec (Hist1D b a) = a
+    filling w x = over hist (I.filling w x x)
 
 
 addH :: (Num a, Unbox a, BinEq b) => Hist1D b a -> Hist1D b a -> Hist1D b a

@@ -40,11 +40,11 @@ Annotated a (H1DD h) `mergeYO` Annotated _ (H1DD h') = Annotated a . H1DD $ addH
 Annotated a (P1DD p) `mergeYO` Annotated _ (P1DD p') = Annotated a . P1DD $ addP p p'
 mergeYO _ _ = error "attempt to add two unrelated objects"
 
-fillHist1D :: (Double, Double) -> YodaObj -> YodaObj
-fillHist1D wx = over (noted . _H1DD) (fill wx)
+fillHist1D :: Double -> Double -> YodaObj -> YodaObj
+fillHist1D w x = over (noted . _H1DD) (filling w x)
 
-fillProf1D :: (Double, (Double, Double)) -> YodaObj -> YodaObj
-fillProf1D wxy = over (noted . _P1DD) (fill wxy)
+fillProf1D :: Double -> (Double, Double) -> YodaObj -> YodaObj
+fillProf1D w xy = over (noted . _P1DD) (filling w xy)
 
 
 -- TODO

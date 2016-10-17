@@ -22,7 +22,6 @@ library
                      , Data.Dist
                      , Data.Weighted
                      , Data.Fillable
-                     , Data.MultiFill
                      , Data.YODA.Obj
 
   other-modules:       Data.Hist.Internal
