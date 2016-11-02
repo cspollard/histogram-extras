@@ -108,7 +108,7 @@ addH h h' = over hist (views hist I.hadd h') h
 
 printHist1D :: (Show a, Num a, Unbox a, IntervalBin b, Show (BinValue b), Unbox (BinValue b))
             => Hist1D b a -> Text
-printHist1D h = T.unlines $ "Total\tTotal\t" <> showBin (fold . V.toList . view histData $ h)
+printHist1D h = T.unlines $ "Total\tTotal\t" <> showBin (total h)
                           : case view overflows h of
                                  Nothing -> []
                                  Just (u, o) -> [ "Underflow\tUnderflow\t" <> showBin u

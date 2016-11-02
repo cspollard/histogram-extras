@@ -55,6 +55,17 @@ bins = prof . I.bins
 overflows :: (Bin b, Unbox a) => Lens' (Prof1D b a) (Maybe (Dist2D a, Dist2D a))
 overflows = prof . I.overflows
 
+total :: (Bin b, Unbox a, Num a) => Prof1D b a -> Dist2D a
+total = fold . binContents
+
+binContents :: (Bin b, Unbox a) => Prof1D b a -> [Dist2D a]
+binContents h = u ++ hd ++ o
+    where
+        (u, o) = case view overflows h of
+                    Just (x, y) -> ([x], [y])
+                    Nothing     -> ([], [])
+        hd = views profData V.toList h
+
 
 instance (Fractional a, Unbox a, Bin b)
     => Weighted (Prof1D b a) where
@@ -63,16 +74,22 @@ instance (Fractional a, Unbox a, Bin b)
 
     scaling w = over profData (V.map $ scaling w)
 
-    integral = lens (view integral . V.foldr (<>) mempty . view profData) f
+    integral = lens getInt normTo
         where
-            f :: (Fractional a, Unbox a, Bin b)
-              => Prof1D b a -> Weight (Prof1D b a) -> Prof1D b a
-            f h w = let (s, xs) =
-                            mapAccumL (\s' x -> (s' <> x, scaling (w / view integral s) x)) mempty
-                                . V.toList
-                                . view profData 
-                                $ h
-                      in  set profData (V.fromList xs) h
+            normTo h w =
+                let (s, xs) = h &
+                        mapAccumL (\s' x -> (s' <> x, scaling i x)) mempty
+                        . V.toList
+                        . view profData
+                    (t, uo) = case view overflows h of
+                                    Just (x, y) -> (s <> x <> y, Just (scaling i x, scaling i y))
+                                    Nothing     -> (s, Nothing)
+
+                    i = w / view integral t
+
+                in h & profData .~ V.fromList xs & overflows .~ uo
+
+            getInt = view integral . total
 
 
 
@@ -91,7 +108,7 @@ addP p p' = over prof (views prof I.hadd p') p
 
 printProf1D :: (Show a, Num a, Unbox a, IntervalBin b, Unbox (BinValue b), Show (BinValue b))
             => Prof1D b a -> Text
-printProf1D h = T.unlines $ "Total\tTotal\t" <> showBin (fold . V.toList . view profData $ h)
+printProf1D h = T.unlines $ "Total\tTotal\t" <> showBin (total h)
                           : case view overflows h of
                                  Nothing -> []
                                  Just (u, o) -> [ "Underflow\tUnderflow\t" <> showBin u
