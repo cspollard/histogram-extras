@@ -5,12 +5,14 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Data.Hist ( Hist1D, hist, histData, bins, overflows
-                 , hist1D, printHist1D
-                 , addH
-                 , Bin(..), BinD, binD
-                 , module X
-                 ) where
+module Data.Hist
+    ( Hist1D, hist, histData, bins, overflows
+    , total, binContents
+    , hist1D, printHist1D
+    , addH
+    , Bin(..), BinD, binD
+    , module X
+    ) where
 
 import Control.Lens
 import Data.Foldable (fold)
@@ -57,6 +59,16 @@ bins = hist . I.bins
 overflows :: (Bin b, Unbox a) => Lens' (Hist1D b a) (Maybe (Dist1D a, Dist1D a))
 overflows = hist . I.overflows
 
+total :: (Bin b, Unbox a, Num a) => Hist1D b a -> Dist1D a
+total = fold . binContents
+
+binContents :: (Bin b, Unbox a) => Hist1D b a -> [Dist1D a]
+binContents h = u ++ hd ++ o
+    where
+        (u, o) = case view overflows h of
+                    Just (x, y) -> ([x], [y])
+                    Nothing     -> ([], [])
+        hd = views histData V.toList h
 
 instance (Fractional a, Unbox a, Bin b)
     => Weighted (Hist1D b a) where
@@ -80,12 +92,7 @@ instance (Fractional a, Unbox a, Bin b)
 
                 in h & histData .~ V.fromList xs & overflows .~ uo
 
-            getInt h =
-                let body = fold . V.toList . view histData $ h
-                    uo = case view overflows h of
-                            Just (x, y) -> x <> y
-                            Nothing     -> mempty
-                in view integral $ body <> uo
+            getInt = view integral . total
 
 
 instance (Fractional a, Unbox a, Bin b, BinValue b ~ FillVec (Dist1D a))
