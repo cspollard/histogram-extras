@@ -24,7 +24,7 @@ import Data.Histogram.Cereal ()
 import Data.Text (Text)
 import qualified Data.Text as T
 
-import Data.Histogram (Histogram, histogram)
+import Data.Histogram (Histogram, histogramUO)
 import Data.Histogram.Bin (binsList, BinEq(..), BinD, Bin(..), IntervalBin(..), binD)
 
 import Data.Vector.Unboxed (Vector, Unbox)
@@ -39,7 +39,7 @@ import qualified Data.Hist.Internal as I
 newtype Prof1D b a = Prof1D { _prof :: Histogram b (Dist2D a) } deriving Generic
 
 prof1D :: (Bin b, Num a, Unbox a) => b -> Prof1D b a
-prof1D b = Prof1D $ histogram b (V.replicate (nBins b) mempty)
+prof1D b = Prof1D $ histogramUO b (Just (mempty, mempty)) (V.replicate (nBins b) mempty)
 
 makeLenses ''Prof1D
 

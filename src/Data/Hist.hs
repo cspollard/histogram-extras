@@ -27,7 +27,7 @@ import qualified Data.Text as T
 import Data.Vector.Unboxed (Vector, Unbox)
 import qualified Data.Vector.Unboxed as V
 
-import Data.Histogram (Histogram, histogram)
+import Data.Histogram (Histogram, histogramUO)
 import Data.Histogram.Bin (binsList, BinEq(..), BinD, Bin(..), IntervalBin(..), binD)
 
 import Data.Weighted as X
@@ -39,7 +39,7 @@ import qualified Data.Hist.Internal as I
 newtype Hist1D b a = Hist1D { _hist :: Histogram b (Dist1D a) } deriving Generic
 
 hist1D :: (Bin b, Num a, Unbox a) => b -> Hist1D b a
-hist1D b = Hist1D $ histogram b (V.replicate (nBins b) mempty)
+hist1D b = Hist1D $ histogramUO b (Just (mempty, mempty)) (V.replicate (nBins b) mempty)
 
 makeLenses ''Hist1D
 
