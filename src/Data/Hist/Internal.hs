@@ -28,8 +28,14 @@ histData = lens H.histData f
 
 
 overflows :: (Vector v a, Bin b) => Lens' (Histogram v b a) (Maybe (a, a))
-overflows = lens (\g -> (,) <$> H.underflows g <*> H.overflows g) f
-    where f h uo = H.histogramUO (view bins h) uo (view histData h)
+overflows = lens H.outOfRange f
+    -- force uo to be strict
+    where
+        f h uo =
+            let g = H.histogramUO (view bins h) uo (view histData h)
+            in case uo of
+                Just (x, y) -> x `seq` y `seq` g
+                Nothing -> g
 
 
 bins :: (Vector v a, Bin b) => Lens' (Histogram v b a) b
@@ -46,14 +52,11 @@ hadd h h' | H.bins h `binEq` H.bins h' =
 
 filling :: (Vector v a, Bin b, Fillable a)
         => Weight a -> FillVec a -> BinValue b -> Histogram v b a -> Histogram v b a
-filling w xs x h = case ixH of
-                    Just i' -> over histData (V.modify (\mv -> MV.write mv i' . F.filling w xs =<< MV.read mv i')) h
-                    Nothing -> h
+filling w xs x h
+    | i < 0     = over (overflows._Just._1) (F.filling w xs) h
+    | i < n     = over histData (V.modify (\mv -> MV.write mv i . F.filling w xs =<< MV.read mv i)) h
+    | otherwise = over (overflows._Just._2) (F.filling w xs) h
 
     where b = view bins h
-          ou = view overflows h
           n = H.nBins b
           i = H.toIndex b x
-          ixH | i < 0     = const n <$> ou     -- underflow
-              | i >= n    = const (n+1) <$> ou -- overflow
-              | otherwise = Just i
