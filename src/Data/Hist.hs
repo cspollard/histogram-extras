@@ -65,12 +65,27 @@ instance (Fractional a, Unbox a, Bin b)
 
     scaling w = over histData (V.map $ scaling w)
 
-    integral = lens (view integral . fold . V.toList . view histData) f
-        where f h w = let (s, xs) = h &
-                            mapAccumL (\s' x -> (s' <> x, scaling (w / view integral s) x)) mempty
-                            . V.toList
-                            . view histData
-                      in  set histData (V.fromList xs) h
+    integral = lens getInt normTo
+        where
+            normTo h w =
+                let (s, xs) = h &
+                        mapAccumL (\s' x -> (s' <> x, scaling i x)) mempty
+                        . V.toList
+                        . view histData
+                    (t, uo) = case view overflows h of
+                                    Just (x, y) -> (s <> x <> y, Just (scaling i x, scaling i y))
+                                    Nothing     -> (s, Nothing)
+
+                    i = w / view integral t
+
+                in h & histData .~ V.fromList xs & overflows .~ uo
+
+            getInt h =
+                let body = fold . V.toList . view histData $ h
+                    uo = case view overflows h of
+                            Just (x, y) -> x <> y
+                            Nothing     -> mempty
+                in view integral $ body <> uo
 
 
 instance (Fractional a, Unbox a, Bin b, BinValue b ~ FillVec (Dist1D a))
