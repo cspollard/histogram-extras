@@ -18,6 +18,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Data.Semigroup ((<>))
+import qualified Data.Map as M
 
 import Data.Hist
 import Data.Prof
@@ -51,24 +52,25 @@ fillProf1D w xy = over (noted . _P1DD) (filling w xy)
 -- path should be hard coded.
 
 printYObj :: YodaObj -> Text
-printYObj yo = T.unlines $ case yo ^. noted of
-                                H1DD h -> [ "# BEGIN YODA_HISTO1D " <> pa
-                                          , "Path=" <> pa, "Type=Histo1D"
-                                          , "XLabel=" <> xl, "YLabel=" <> yl
-                                          , printHist1D h
-                                          , "# END YODA_HISTO1D", ""
-                                          ]
+printYObj yo = T.unlines $
+    case yo ^. noted of
+        H1DD h ->
+            [ "# BEGIN YODA_HISTO1D " <> pa
+            , "Type=Histo1D"
+            ] ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList $ yo ^. annots)
+            ++ [ printHist1D h
+            , "# END YODA_HISTO1D", ""
+            ]
 
-                                P1DD p -> [ "# BEGIN YODA_PROFILE1D " <> pa
-                                          , "Path=" <> pa, "Type=Profile1D"
-                                          , "XLabel=" <> xl, "YLabel=" <> yl
-                                          , printProf1D p
-                                          , "# END YODA_PROFILE1D", ""
-                                          ]
+        P1DD p ->
+            [ "# BEGIN YODA_PROFILE1D " <> pa
+            , "Type=Profile1D"
+            ] ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList $ yo ^. annots)
+            ++ [ printProf1D p
+            , "# END YODA_PROFILE1D", ""
+            ]
 
     where pa = yo ^. path
-          xl = yo ^. xlabel
-          yl = yo ^. ylabel
 
 
 

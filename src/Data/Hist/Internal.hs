@@ -57,6 +57,7 @@ filling w xs x h
     | i < n     = over histData (V.modify (\mv -> MV.write mv i . F.filling w xs =<< MV.read mv i)) h
     | otherwise = over (overflows._Just._2) (F.filling w xs) h
 
-    where b = view bins h
-          n = H.nBins b
-          i = H.toIndex b x
+    where
+        b = view bins h
+        n = H.nBins b
+        i = H.toIndex b x
