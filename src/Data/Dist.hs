@@ -6,9 +6,9 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Data.Dist ( Dist0D, sumW, sumWW, nentries
-                 , Dist1D, sumWX, sumWXX, distW
-                 , Dist2D, distX, distY, sumWXY
+module Data.Dist ( Dist0D, sumW, sumWW, nentries, negateD0
+                 , Dist1D, sumWX, sumWXX, distW, negateD1
+                 , Dist2D, distX, distY, sumWXY, negateD2
                  ) where
 
 import Control.Lens
@@ -50,6 +50,9 @@ instance Num a => Semigroup (Dist0D a) where
 instance Num a => Monoid (Dist0D a) where
     mempty = Dist0D 0 0 0
     mappend = (<>)
+
+negateD0 :: Num a => Dist0D a -> Dist0D a
+negateD0 d = d & sumW *~ (-1)
 
 
 instance Fractional a => Weighted (Dist0D a) where
@@ -93,6 +96,12 @@ instance Num a => Monoid (Dist1D a) where
     mappend = (<>)
 
 
+negateD1 :: Num a => Dist1D a -> Dist1D a
+negateD1 d =
+    d & distW %~ negateD0
+      & sumWX *~ (-1)
+
+
 instance Fractional a => Weighted (Dist1D a) where
     type Weight (Dist1D a) = a
     scaling w d = d
@@ -131,6 +140,13 @@ instance Num a => Semigroup (Dist2D a) where
 instance Num a => Monoid (Dist2D a) where
     mempty = Dist2D mempty mempty 0
     mappend = (<>)
+
+
+negateD2 :: Num a => Dist2D a -> Dist2D a
+negateD2 d =
+    d & distX %~ negateD1
+      & distY %~ negateD1
+      & sumWXY *~ (-1)
 
 
 instance Fractional a => Weighted (Dist2D a) where
