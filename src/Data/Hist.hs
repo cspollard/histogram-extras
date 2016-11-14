@@ -75,7 +75,8 @@ instance (Fractional a, Unbox a, Bin b)
 
     type Weight (Hist1D b a) = a
 
-    scaling w = over histData (V.map $ scaling w)
+    scaling w h = h & histData %~ V.map (scaling w)
+                    & overflows._Just.both %~ scaling w
 
     integral = lens getInt normTo
         where

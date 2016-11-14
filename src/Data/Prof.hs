@@ -72,7 +72,9 @@ instance (Fractional a, Unbox a, Bin b)
 
     type Weight (Prof1D b a) = a
 
-    scaling w = over profData (V.map $ scaling w)
+    scaling w p = p & profData %~ V.map (scaling w)
+                    & overflows._Just.both %~ scaling w
+
 
     integral = lens getInt normTo
         where
