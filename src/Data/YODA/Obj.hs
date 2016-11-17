@@ -6,7 +6,7 @@ module Data.YODA.Obj ( Obj(..), _H1DD, _P1DD
                      , YodaObj, YodaFolder
                      , fillHist1D, yodaHist1D
                      , fillProf1D, yodaProf1D
-                     , mergeYO, printYObj
+                     , mergeYO, mergeYF, printYObj
                      , module X
                      ) where
 
@@ -44,6 +44,9 @@ Annotated a (H1DD h) `mergeYO` Annotated _ (H1DD h') = Annotated a . H1DD $ addH
 Annotated a (P1DD p) `mergeYO` Annotated _ (P1DD p') = Annotated a . P1DD $ addP p p'
 mergeYO _ _ = error "attempt to add two unrelated objects"
 
+mergeYF :: YodaFolder -> YodaFolder -> YodaFolder
+mergeYF = M.unionWith mergeYO
+
 fillHist1D :: Double -> Double -> YodaObj -> YodaObj
 fillHist1D w x = over (noted . _H1DD) (filling w x)
 
@@ -51,11 +54,8 @@ fillProf1D :: Double -> (Double, Double) -> YodaObj -> YodaObj
 fillProf1D w xy = over (noted . _P1DD) (filling w xy)
 
 
--- TODO
--- path should be hard coded.
-
-printYObj :: (Text, YodaObj) -> Text
-printYObj (pa, yo) = T.unlines $
+printYObj :: Text -> YodaObj -> Text
+printYObj pa yo = T.unlines $
     case yo ^. noted of
         H1DD h ->
             [ "# BEGIN YODA_HISTO1D " <> pa
