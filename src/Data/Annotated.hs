@@ -5,7 +5,7 @@
 
 module Data.Annotated ( Annotated(..), annotated
                       , annots, noted
-                      , path, xlabel, ylabel
+                      , title, xlabel, ylabel
                       ) where
 
 
@@ -29,8 +29,8 @@ makeLenses ''Annotated
 annotated :: a -> Annotated a
 annotated = Annotated empty
 
-path :: Traversal' (Annotated a) Text
-path = annots . ix "Path"
+title :: Traversal' (Annotated a) Text
+title = annots . ix "Title"
 
 xlabel :: Traversal' (Annotated a) Text
 xlabel = annots . ix "XLabel"
