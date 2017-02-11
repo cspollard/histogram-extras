@@ -75,6 +75,9 @@ instance (KnownNat n, RealFrac a) => VariableBin (FixedBin n min max a) where
 instance (KnownNat n, RealFrac a) => UniformBin (FixedBin n min max a) where
   binSize (FixedBin _ step _) = step
 
+instance (KnownNat n, RealFrac a) => BinEq (FixedBin n min max a) where
+  binEq _ _ = True
+
 
 
 class BinTransform bt where
@@ -138,6 +141,11 @@ instance
   , Num (BTRange bt), Ord (BTRange bt) )
   => VariableBin (TransformedBin b bt) where
   binSizeN tb i = uncurry (flip (-)) $ binInterval tb i
+
+instance (BinTransform bt, Bin b, BinValue b ~ BTDomain bt)
+  => BinEq (TransformedBin b bt) where
+  binEq _ _ = True
+
 
 fixedLogBin
   :: (KnownNat n, KnownNat min, KnownNat max, Floating a)
