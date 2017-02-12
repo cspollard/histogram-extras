@@ -56,6 +56,11 @@ bins = lens G.bins f
 total :: (Vector v a, Traversable v, Bin b, Monoid a) => Histogram v b a -> a
 total = foldOf histDataUO
 
+addH
+  :: (Vector v a, Semigroup a, BinEq b)
+  => Histogram v b a -> Histogram v b a -> Histogram v b a
+addH = I.hadd
+
 
 -- instance (Fractional a, Bin b)
 --     => Weighted (Histogram v b a) where
@@ -88,13 +93,6 @@ total = foldOf histDataUO
 --
 --     type FillVec (Histogram v b a) = a
 --     filling w x = over hist (I.filling w x x)
-
-
-addH
-  :: (Vector v a, Semigroup a, BinEq b)
-  => Histogram v b a -> Histogram v b a -> Histogram v b a
-addH = I.hadd
-
 
 -- printHistogram :: (Show a, Num a, IntervalBin b, Show (BinValue b))
 --             => Histogram v b a -> Text
