@@ -24,6 +24,7 @@ import Data.List (intersperse)
 import Control.Lens
 import Data.Proxy
 import GHC.TypeLits
+import Linear.V (Dim(..))
 
 import Data.Histogram.Bin.Classes as X
 
@@ -78,6 +79,8 @@ instance (KnownNat n, RealFrac a) => UniformBin (FixedBin n min max a) where
 instance (KnownNat n, RealFrac a) => BinEq (FixedBin n min max a) where
   binEq _ _ = True
 
+instance KnownNat n => Dim (FixedBin n min max a) where
+  reflectDim _ = fromIntegral $ natVal (Proxy :: Proxy n)
 
 
 class BinTransform bt where
@@ -146,6 +149,8 @@ instance (BinTransform bt, Bin b, BinValue b ~ BTDomain bt)
   => BinEq (TransformedBin b bt) where
   binEq _ _ = True
 
+instance (Dim b) => Dim (TransformedBin b bt) where
+  reflectDim _ = reflectDim (Proxy :: Proxy b)
 
 fixedLogBin
   :: (KnownNat n, KnownNat min, KnownNat max, Floating a)
