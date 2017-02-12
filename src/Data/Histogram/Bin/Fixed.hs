@@ -18,13 +18,14 @@ module Data.Histogram.Bin.Fixed
   , fixedLogBin, fixedLog10Bin
   , BinTransform (..)
   , LogBT, Log10BT
+  , Sized(..)
   ) where
 
+import           Linear.V
 import Data.List (intersperse)
 import Control.Lens
 import Data.Proxy
 import GHC.TypeLits
-import Linear.V (Dim(..))
 
 import Data.Histogram.Bin.Classes as X
 
@@ -152,6 +153,7 @@ instance (BinTransform bt, Bin b, BinValue b ~ BTDomain bt)
 instance (Dim b) => Dim (TransformedBin b bt) where
   reflectDim _ = reflectDim (Proxy :: Proxy b)
 
+
 fixedLogBin
   :: (KnownNat n, KnownNat min, KnownNat max, Floating a)
   => TransformedBin (FixedBin n min max a) (LogBT a)
@@ -161,6 +163,17 @@ fixedLog10Bin
   :: (KnownNat n, KnownNat min, KnownNat max, Floating a)
   => TransformedBin (FixedBin n min max a) (Log10BT a)
 fixedLog10Bin = transFixedBin
+
+
+class Sized s where
+  type Size s :: k
+
+instance Sized (FixedBin n min max a) where
+  type Size (FixedBin n min max a) = n
+
+instance Sized (TransformedBin b bt) where
+  type Size (TransformedBin b bt) = Size b
+
 
 {-
 class KnownRat r where

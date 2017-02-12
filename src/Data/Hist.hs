@@ -1,132 +1,121 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE TypeFamilies              #-}
 
 module Data.Hist
-    ( Hist1D, hist, histData, bins, overflows
-    , total, binContents
-    , hist1D, printHist1D
+    ( Histogram, histData, bins, overflows
+    , total, histDataUO
     , addH
-    , Bin(..), BinD, binD
-    , module X
+    -- , module X
     ) where
 
-import Control.Lens
-import Data.Foldable (fold)
-import Data.Semigroup ((<>))
-import Data.List (mapAccumL)
+import           Control.Lens
+import           Data.Semigroup
 
-import GHC.Generics
-import Data.Serialize
-import Data.Histogram.Cereal ()
+import           Data.Histogram.Cereal    ()
 
-import Data.Text (Text)
-import qualified Data.Text as T
+import           Data.Vector.Generic (Vector)
 
-import Data.Vector.Unboxed (Vector, Unbox)
-import qualified Data.Vector.Unboxed as V
+import           Data.Histogram.Bin.Fixed
+import           Data.Histogram.Generic   (Histogram)
+import qualified Data.Histogram.Generic   as G
 
-import Data.Histogram (Histogram, histogramUO)
-import Data.Histogram.Bin (binsList, BinEq(..), BinD, Bin(..), IntervalBin(..), binD)
-
-import Data.Weighted as X
-import Data.Fillable as X
-import Data.Dist as X
-import qualified Data.Hist.Internal as I
+import qualified Data.Hist.Internal       as I
 
 
-newtype Hist1D b a = Hist1D { _hist :: Histogram b (Dist1D a) } deriving Generic
+histData :: (Vector v a, Bin b) => Lens' (Histogram v b a) (v a)
+histData = lens G.histData f
+    where f h = G.histogramUO (view bins h) (view overflows h)
 
-hist1D :: (Bin b, Num a, Unbox a) => b -> Hist1D b a
-hist1D b = Hist1D $ histogramUO b (Just (mempty, mempty)) (V.replicate (nBins b) mempty)
-
-makeLenses ''Hist1D
-
-instance (Show a, Unbox a, Show (BinValue b), Show b, Bin b) => Show (Hist1D b a) where
-    show = views hist show
-
-instance (Bin b, Serialize b, Serialize a, Unbox a) => Serialize (Hist1D b a) where
-
-histData :: (Bin b, Unbox a) => Lens' (Hist1D b a) (Vector (Dist1D a))
-histData = hist . I.histData
-
-bins :: (Bin b, Unbox a) => Lens' (Hist1D b a) b
-bins = hist . I.bins
-
-overflows :: (Bin b, Unbox a) => Lens' (Hist1D b a) (Maybe (Dist1D a, Dist1D a))
-overflows = hist . I.overflows
-
-total :: (Bin b, Unbox a, Num a) => Hist1D b a -> Dist1D a
-total = fold . binContents
-
-binContents :: (Bin b, Unbox a) => Hist1D b a -> [Dist1D a]
-binContents h = u ++ hd ++ o
+histDataUO
+  :: (Vector v a, Traversable v, Bin b)
+  => Traversal' (Histogram v b a) a
+histDataUO f h = G.histogramUO b <$> uo <*> v
     where
-        (u, o) = case view overflows h of
-                    Just (x, y) -> ([x], [y])
-                    Nothing     -> ([], [])
-        hd = views histData V.toList h
-
-instance (Fractional a, Unbox a, Bin b)
-    => Weighted (Hist1D b a) where
-
-    type Weight (Hist1D b a) = a
-
-    scaling w h = h & histData %~ V.map (scaling w)
-                    & overflows._Just.both %~ scaling w
-
-    integral = lens getInt normTo
-        where
-            normTo h w =
-                let (s, xs) = h &
-                        mapAccumL (\s' x -> (s' <> x, scaling i x)) mempty
-                        . V.toList
-                        . view histData
-                    (t, uo) = case view overflows h of
-                                    Just (x, y) -> (s <> x <> y, Just (scaling i x, scaling i y))
-                                    Nothing     -> (s, Nothing)
-
-                    i = w / view integral t
-
-                in h & histData .~ V.fromList xs & overflows .~ uo
-
-            getInt = view integral . total
+      b = G.bins h
+      v = traverse f $ G.histData h
+      uo = (traverse.both) f $ G.outOfRange h
 
 
-instance (Fractional a, Unbox a, Bin b, BinValue b ~ FillVec (Dist1D a))
-    => Fillable (Hist1D b a) where
+overflows :: (Vector v a, Bin b) => Lens' (Histogram v b a) (Maybe (a, a))
+overflows = lens G.outOfRange f
+    -- force uo to be strict
+    where
+        f h uo =
+            let g = G.histogramUO (view bins h) uo (view histData h)
+            in case uo of
+                Just (x, y) -> x `seq` y `seq` g
+                Nothing -> g
 
-    type FillVec (Hist1D b a) = a
-    filling w x = over hist (I.filling w x x)
+
+bins :: (Vector v a, Bin b) => Lens' (Histogram v b a) b
+bins = lens G.bins f
+    where f h bs = G.histogramUO bs (view overflows h) (view histData h)
+
+total :: (Vector v a, Traversable v, Bin b, Monoid a) => Histogram v b a -> a
+total = foldOf histDataUO
 
 
-addH :: (Num a, Unbox a, BinEq b) => Hist1D b a -> Hist1D b a -> Hist1D b a
-addH h h' = over hist (views hist I.hadd h') h
+-- instance (Fractional a, Bin b)
+--     => Weighted (Histogram v b a) where
+--
+--     type Weight (Histogram v b a) = a
+--
+--     scaling w h = h & histData %~ V.map (scaling w)
+--                     & overflows._Just.both %~ scaling w
+--
+--     integral = lens getInt normTo
+--         where
+--             normTo h w =
+--                 let (s, xs) = h &
+--                         mapAccumL (\s' x -> (s' <> x, scaling i x)) mempty
+--                         . V.toList
+--                         . view histData
+--                     (t, uo) = case view overflows h of
+--                                     Just (x, y) -> (s <> x <> y, Just (scaling i x, scaling i y))
+--                                     Nothing     -> (s, Nothing)
+--
+--                     i = w / view integral t
+--
+--                 in h & histData .~ V.fromList xs & overflows .~ uo
+--
+--             getInt = view integral . total
+--
+--
+-- instance (Fractional a, Bin b, BinValue b ~ FillVec (Dist1D a))
+--     => Fillable (Histogram v b a) where
+--
+--     type FillVec (Histogram v b a) = a
+--     filling w x = over hist (I.filling w x x)
 
 
-printHist1D :: (Show a, Num a, Unbox a, IntervalBin b, Show (BinValue b), Unbox (BinValue b))
-            => Hist1D b a -> Text
-printHist1D h = T.unlines $ "Total\tTotal\t" <> showBin (total h)
-                          : case view overflows h of
-                                 Nothing -> []
-                                 Just (u, o) -> [ "Underflow\tUnderflow\t" <> showBin u
-                                                , "Overflow\tOverflow\t" <> showBin o
-                                                ]
-                          ++ zipWith f bs (V.toList $ view histData h)
+addH
+  :: (Vector v a, Semigroup a, BinEq b)
+  => Histogram v b a -> Histogram v b a -> Histogram v b a
+addH = I.hadd
 
-      where f (xmin, xmax) d = T.intercalate "\t" [ T.pack $ show xmin
-                                                  , T.pack $ show xmax
-                                                  , showBin d
-                                                  ]
 
-            showBin d = T.intercalate "\t" . map T.pack $ [ views (distW . sumW) show d
-                                                          , views (distW . sumWW) show d
-                                                          , views sumWX show d
-                                                          , views sumWXX show d
-                                                          , views (distW . nentries) show d
-                                                          ]
-
-            bs = V.toList $ views bins binsList h
+-- printHistogram :: (Show a, Num a, IntervalBin b, Show (BinValue b))
+--             => Histogram v b a -> Text
+-- printHistogram h = T.unlines $ "Total\tTotal\t" <> showBin (total h)
+--                           : case view overflows h of
+--                                  Nothing -> []
+--                                  Just (u, o) -> [ "Underflow\tUnderflow\t" <> showBin u
+--                                                 , "Overflow\tOverflow\t" <> showBin o
+--                                                 ]
+--                           ++ zipWith f bs (VG.toList $ view histData h)
+--
+--       where f (xmin, xmax) d = T.intercalate "\t" [ T.pack $ show xmin
+--                                                   , T.pack $ show xmax
+--                                                   , showBin d
+--                                                   ]
+--
+--             showBin d = T.intercalate "\t" . map T.pack $ [ views (distW . sumW) show d
+--                                                           , views (distW . sumWW) show d
+--                                                           , views sumWX show d
+--                                                           , views sumWXX show d
+--                                                           , views (distW . nentries) show d
+--                                                           ]
+--
+--             bs = VG.toList $ views bins binsList h
