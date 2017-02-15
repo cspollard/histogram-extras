@@ -1,0 +1,3 @@
+- DistXD -> GaussN
+    where GaussN basically encodes a vector N of means
+    and a NxN lower-triangular covariance matrix
