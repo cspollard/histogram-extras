@@ -9,7 +9,7 @@
 module Data.Hist
     ( Histogram, histData, bins, outOfRange
     , total, histVals, atVal, atIdx
-    , histFill
+    , HistFill, histFill
     , hadd, printHistogram, printDist1D, printDist2D
     , module X
     ) where
