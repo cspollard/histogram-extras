@@ -1,84 +1,111 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric          #-}
+{-# LANGUAGE TemplateHaskell          #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE FlexibleContexts          #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings         #-}
 
-module Data.YODA.Obj ( Obj(..), _H1DD, _P1DD
-                     , YodaObj, YodaFolder
-                     , fillHist1D, yodaHist1D
-                     , fillProf1D, yodaProf1D
-                     , mergeYO, mergeYF, printYObj
-                     , module X
-                     ) where
-
-import Control.Lens
+module Data.YODA.Obj
+  ( YodaHist
+  , Obj(..), _H1DD, _P1DD
+  , YodaObj
+  , YodaFolder
+  , printProf, printHist
+  , printYodaObj
+  , mergeYO, mergeYF
+  , module X
+  ) where
 
 import GHC.Generics
-import Data.Serialize
+import           Data.Serialize
+import           Control.Foldl
+import           Control.Lens
+import           Data.Text      (Text)
+import qualified Data.Text      as T
+import qualified Data.Map       as M
+import           Data.Semigroup ((<>))
+import           Data.Annotated as X
+import qualified Data.Vector.Generic    as VG
+import qualified Data.Vector.Generic.Mutable    as VGM
 
-import Data.Text (Text)
-import qualified Data.Text as T
+import           Data.Hist      as X
 
-import Data.Semigroup ((<>))
-import qualified Data.Map as M
+type HistFill m v a b c = FoldM m a (Histogram v b c)
 
-import Data.Hist
-import Data.Prof
-import Data.Annotated as X
-import Data.Weighted as X
-import Data.Fillable as X
+-- TODO
+-- these fns could all be monadic...
+-- do I really want PrimMonads here?
+-- is V.modify strict?
+fill
+  :: (Bin b, Monad m)
+  => Histogram v b c
+  -> (a -> (BinValue b, d))
+  -> (c -> d -> c)
+  -> HistFill m v a b c
+fill h f comb = FoldM g (return h) return
+  where
+    g h' xs = do
+      let (x, val) = f xs
 
-data Obj = H1DD !(Hist1D BinD Double)
-         | P1DD !(Prof1D BinD Double)
-         deriving (Show, Generic)
 
-instance Serialize Obj where
+data Obj =
+  H1DD !(Histogram V.Vector (ArbBin Double) (Dist1D Double))
+  | P1DD !(Histogram V.Vector (ArbBin Double) (Dist2D Double))
+  deriving (Generic, Show)
 
 makePrisms ''Obj
 
+instance Serialize Obj where
+
 type YodaObj = Annotated Obj
+
 type YodaFolder = M.Map Text YodaObj
 
-
-mergeYO :: YodaObj -> YodaObj -> YodaObj
-Annotated a (H1DD h) `mergeYO` Annotated _ (H1DD h') = Annotated a . H1DD $ addH h h'
-Annotated a (P1DD p) `mergeYO` Annotated _ (P1DD p') = Annotated a . P1DD $ addP p p'
-mergeYO _ _ = error "attempt to add two unrelated objects"
+mergeYO :: YodaObj -> YodaObj -> Maybe YodaObj
+Annotated a (H1DD h) `mergeYO` Annotated _ (H1DD h') =
+  Just . Annotated a . H1DD $ addH h h'
+Annotated a (P1DD p) `mergeYO` Annotated _ (P1DD p') =
+  Just . Annotated a . P1DD $ addH p p'
+mergeYO _ _ = Nothing
 
 mergeYF :: YodaFolder -> YodaFolder -> YodaFolder
-mergeYF = M.unionWith mergeYO
-
-fillHist1D :: Double -> Double -> YodaObj -> YodaObj
-fillHist1D w x = over (noted . _H1DD) (filling w x)
-
-fillProf1D :: Double -> (Double, Double) -> YodaObj -> YodaObj
-fillProf1D w xy = over (noted . _P1DD) (filling w xy)
+mergeYF yf yf' = M.mapMaybe id $ M.intersectionWith mergeYO yf yf'
 
 
-printYObj :: Text -> YodaObj -> Text
-printYObj pa yo = T.unlines $
-    case yo ^. noted of
-        H1DD h ->
-            [ "# BEGIN YODA_HISTO1D " <> pa
-            , "Type=Histo1D"
-            , "Path=" <> pa
-            ] ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList $ yo ^. annots)
-            ++ [ printHist1D h
-            , "# END YODA_HISTO1D", ""
-            ]
+printHist
+  :: ( IntervalBin b, Vector v Text, Vector v (Dist1D a)
+     , Vector v (BinValue b, BinValue b), Traversable v, Show (BinValue b)
+     , Show a, Num a )
+  => Text -> Annotated (Histogram v b (Dist1D a)) -> Text
+printHist pa (Annotated as h) =
+  T.unlines $
+    [ "# BEGIN YODA_HISTO1D " <> pa
+    , "Type=Histo1D"
+    , "Path=" <> pa
+    ]
+    ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList as)
+    ++
+      [ printHistogram printDist1D h
+      , "# END YODA_HISTO1D", ""
+      ]
 
-        P1DD p ->
-            [ "# BEGIN YODA_PROFILE1D " <> pa
-            , "Type=Profile1D"
-            , "Path=" <> pa
-            ] ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList $ yo ^. annots)
-            ++ [ printProf1D p
-            , "# END YODA_PROFILE1D", ""
-            ]
+printProf
+  :: ( IntervalBin b, Vector v Text, Vector v (Dist2D a)
+     , Vector v (BinValue b, BinValue b), Traversable v, Show (BinValue b)
+     , Show a, Num a )
+  => Text -> Annotated (Histogram v b (Dist2D a)) -> Text
+printProf pa (Annotated as p) =
+  T.unlines $
+    [ "# BEGIN YODA_PROFILE1D " <> pa
+    , "Type=Profile1D"
+    , "Path=" <> pa
+    ]
+    ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList as)
+    ++
+      [ printHistogram printDist2D p
+      , "# END YODA_PROFILE1D", ""
+      ]
 
-
-
-yodaHist1D :: Int -> Double -> Double -> YodaObj
-yodaHist1D n mn mx = annotated . H1DD $ hist1D (binD mn n mx)
-
-yodaProf1D :: Int -> Double -> Double -> YodaObj
-yodaProf1D n mn mx = annotated . P1DD $ prof1D (binD mn n mx)
+printYodaObj :: Text -> YodaObj -> Text
+printYodaObj pa (Annotated a (H1DD h)) = printHist pa (Annotated a h)
+printYodaObj pa (Annotated a (P1DD p)) = printProf pa (Annotated a p)

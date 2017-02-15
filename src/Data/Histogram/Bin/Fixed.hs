@@ -1,3 +1,4 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
@@ -10,18 +11,26 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Data.Histogram.Bin.Fixed
   ( module X
   , FixedBin, fixedBin
-  , TransformedBin (..)
+  , ArbBin, arbBin, toArbBin
+  , TransformedBin, transformedBin
   , fixedLogBin, fixedLog10Bin
   , BinTransform (..)
   , LogBT, Log10BT
   , Sized(..)
   ) where
 
+import Data.Vector.Serialize ()
+import Data.Serialize
+import GHC.Generics hiding (from)
+import Data.Maybe (fromMaybe)
+import qualified Data.Vector as V
 import           Linear.V
+import           Linear.Epsilon
 import Data.List (intersperse)
 import Control.Lens
 import Data.Proxy
@@ -31,6 +40,9 @@ import Data.Histogram.Bin.Classes as X
 
 data FixedBin :: (n -> a -> b -> * -> *) where
   FixedBin :: c -> c -> c -> FixedBin n a b c
+  deriving (Generic, Show)
+
+instance Serialize c => Serialize (FixedBin n a b c) where
 
 instance (KnownNat n, Show c) => Show (FixedBin n min max c) where
   show (FixedBin mn _ mx) =
@@ -64,12 +76,12 @@ instance (KnownNat n, RealFrac a) => Bin (FixedBin n min max a) where
     | otherwise = floor $ (x-mn) / step
 
   fromIndex (FixedBin mn step _) i =
-    mn + fromIntegral i * step
+    mn + (fromIntegral i + 0.5) * step
 
 
 instance (KnownNat n, RealFrac a) => IntervalBin (FixedBin n min max a) where
-  binInterval fb@(FixedBin _ step _) i = (x, x+step)
-    where x = fromIndex fb i
+  binInterval (FixedBin mn step _) i = (x, x+step)
+    where x = mn + fromIntegral i * step
 
 instance (KnownNat n, RealFrac a) => VariableBin (FixedBin n min max a) where
   binSizeN (FixedBin _ step _) _ = step
@@ -84,6 +96,60 @@ instance KnownNat n => Dim (FixedBin n min max a) where
   reflectDim _ = fromIntegral $ natVal (Proxy :: Proxy n)
 
 
+data ArbBin a = ArbBin Int a (V.Vector a) a
+  deriving (Generic, Show)
+
+instance Serialize a => Serialize (ArbBin a) where
+
+arbBin :: V.Vector a -> ArbBin a
+arbBin v = ArbBin (V.length v - 1) (V.head v) v (V.last v)
+
+toArbBin :: IntervalBin b => b -> ArbBin (BinValue b)
+toArbBin b = arbBin $ V.snoc (fst <$> bl) (snd . V.last $ bl)
+  where
+    bl = binsList b
+
+posinf :: Fractional a => a
+posinf = 1/0
+
+neginf :: Fractional a => a
+neginf = negate posinf
+
+instance (Ord a, Fractional a) => Bin (ArbBin a) where
+  type BinValue (ArbBin a) = a
+
+  inRange (ArbBin _ mn _ mx) x = x >= mn && x < mx
+
+  nBins (ArbBin n _ _ _) = n
+
+  toIndex (ArbBin n mn v _) x
+    | x < mn = negate 1
+    | otherwise = fromMaybe n $ V.findIndex (< x) v
+
+  fromIndex (ArbBin _ _ v _) i
+    | i < 0 = neginf
+    | otherwise =
+      maybe posinf (/2) $ (+) <$> v V.!? i <*> v V.!? (i+1)
+
+instance (Ord a, Fractional a) => IntervalBin (ArbBin a) where
+  binInterval (ArbBin _ mn v mx) i
+    | i < 0 = (neginf, mn)
+    | otherwise = (x, y)
+      where
+        x = fromMaybe mx $ v V.!? i
+        y = fromMaybe posinf $ v V.!? (i+1)
+
+instance (Ord a, Fractional a) => VariableBin (ArbBin a) where
+  binSizeN ab i = y - x
+    where (x, y) = binInterval ab i
+
+instance (Ord a, Fractional a, Epsilon a)
+  => BinEq (ArbBin a) where
+  binEq (ArbBin n _ v _) (ArbBin n' _ v' _) =
+    (n == n')
+      && all nearZero ((-) <$> v <*> v')
+
+
 class BinTransform bt where
   type BTDomain bt :: *
   type BTRange bt :: *
@@ -95,6 +161,7 @@ safeLog x
   | otherwise = log x
 
 data LogBT a
+  deriving Generic
 
 instance (Ord a, Floating a) => BinTransform (LogBT a) where
   type BTDomain (LogBT a) = a
@@ -107,6 +174,7 @@ safeLog10 x
   | otherwise = logBase 10 x
 
 data Log10BT a
+  deriving Generic
 
 instance (Ord a, Floating a) => BinTransform (Log10BT a) where
   type BTDomain (Log10BT a) = a
@@ -114,26 +182,29 @@ instance (Ord a, Floating a) => BinTransform (Log10BT a) where
   btIso _ = iso (10**) safeLog10
 
 data TransformedBin b bt = TransformedBin b (Proxy bt)
+  deriving (Generic, Show)
 
-transFixedBin
-  :: (KnownNat n, KnownNat min, KnownNat max, Fractional a)
-  => TransformedBin (FixedBin n min max a) bt
-transFixedBin = TransformedBin fixedBin Proxy
+transformedBin :: b -> TransformedBin b bt
+transformedBin b = TransformedBin b (Proxy :: Proxy bt)
 
-instance (BinTransform bt, Bin b, BinValue b ~ BTDomain bt)
+instance
+  ( BinTransform bt, Fractional (BTDomain bt), IntervalBin b
+  , BinValue b ~ BTDomain bt )
   => Bin (TransformedBin b bt) where
   type BinValue (TransformedBin b bt) = BTRange bt
 
-  inRange (TransformedBin fb p) = views (from $ btIso p) (inRange fb)
+  inRange (TransformedBin b p) = views (from $ btIso p) (inRange b)
 
-  nBins (TransformedBin fb _) = nBins fb
+  nBins (TransformedBin b _) = nBins b
 
-  toIndex (TransformedBin fb p) = views (from $ btIso p) (toIndex fb)
+  toIndex (TransformedBin b p) = views (from $ btIso p) (toIndex b)
 
-  fromIndex (TransformedBin fb p) = view (btIso p) . fromIndex fb
+  fromIndex (TransformedBin b p) i = view (btIso p) x
+    where x = (/2) . uncurry (+) $ binInterval b i
 
 
-instance (BinTransform bt, IntervalBin b, BinValue b ~ BTDomain bt, Ord (BTRange bt))
+instance
+  (BinTransform bt, Fractional (BTDomain bt), IntervalBin b, BinValue b ~ BTDomain bt, Ord (BTRange bt))
   => IntervalBin (TransformedBin b bt) where
   binInterval (TransformedBin b p) j =
     let i = btIso p
@@ -141,12 +212,14 @@ instance (BinTransform bt, IntervalBin b, BinValue b ~ BTDomain bt, Ord (BTRange
 
 
 instance
-  ( BinTransform bt, IntervalBin b, BinValue b ~ BTDomain bt
-  , Num (BTRange bt), Ord (BTRange bt) )
+  ( BinTransform bt, Fractional (BTDomain bt), IntervalBin b
+  , BinValue b ~ BTDomain bt, Num (BTRange bt), Ord (BTRange bt) )
   => VariableBin (TransformedBin b bt) where
   binSizeN tb i = uncurry (flip (-)) $ binInterval tb i
 
-instance (BinTransform bt, Bin b, BinValue b ~ BTDomain bt)
+instance
+  ( BinTransform bt, Fractional (BTDomain bt), IntervalBin b
+  , BinValue b ~ BTDomain bt )
   => BinEq (TransformedBin b bt) where
   binEq _ _ = True
 
@@ -157,12 +230,12 @@ instance (Dim b) => Dim (TransformedBin b bt) where
 fixedLogBin
   :: (KnownNat n, KnownNat min, KnownNat max, Floating a)
   => TransformedBin (FixedBin n min max a) (LogBT a)
-fixedLogBin = transFixedBin
+fixedLogBin = transformedBin fixedBin
 
 fixedLog10Bin
   :: (KnownNat n, KnownNat min, KnownNat max, Floating a)
   => TransformedBin (FixedBin n min max a) (Log10BT a)
-fixedLog10Bin = transFixedBin
+fixedLog10Bin = transformedBin fixedBin
 
 
 class Sized s where
@@ -173,24 +246,3 @@ instance Sized (FixedBin n min max a) where
 
 instance Sized (TransformedBin b bt) where
   type Size (TransformedBin b bt) = Size b
-
-
-{-
-class KnownRat r where
-  ratVal :: Proxy r -> Rational
-
-data Rat (m :: a) (n :: a)
-
-infixl 7 /
-type family (m :: Nat) / (n :: Nat)
-
-instance KnownNat n => KnownRat n where
-  ratVal _ = fromIntegral . natVal $ (Proxy :: Proxy n)
-
-instance (KnownNat n, KnownNat m) => KnownRat (Rat m n) where
-  ratVal _ =
-    let n' = natVal (Proxy :: Proxy n)
-        m' = natVal (Proxy :: Proxy m)
-    in n' % m'
-
--}
