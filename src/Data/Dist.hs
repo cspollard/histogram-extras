@@ -1,31 +1,28 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeFamilies          #-}
 
 module Data.Dist ( Dist0D, sumW, sumWW, nentries, negateD0
                  , Dist1D, sumWX, sumWXX, distW, negateD1
                  , Dist2D, distX, distY, sumWXY, negateD2
                  ) where
 
-import Control.Lens
-import Data.Semigroup
+import           Control.Lens
+import           Data.Semigroup
+import           Data.Serialize
+import           Data.Vector.Unboxed
+import           Data.Vector.Unboxed.Deriving
+import           GHC.Generics
 
-import GHC.Generics
-import Data.Serialize
+import           Data.Fillable
+import           Data.Weighted
 
-import Data.Weighted
-import Data.Fillable
-
-import Data.Vector.Unboxed.Deriving
-import Data.Vector.Unboxed
-
-
-data Dist0D a = Dist0D { _sumW :: !a
-                       , _sumWW :: !a
+data Dist0D a = Dist0D { _sumW     :: !a
+                       , _sumWW    :: !a
                        , _nentries :: !Int
                        } deriving (Generic, Show)
 
@@ -55,6 +52,7 @@ negateD0 :: Num a => Dist0D a -> Dist0D a
 negateD0 d = d & sumW *~ (-1)
 
 
+
 instance Fractional a => Weighted (Dist0D a) where
     type Weight (Dist0D a) = a
     scaling w d = d
@@ -74,8 +72,8 @@ instance Fractional a => Fillable (Dist0D a) where
         & nentries +~ 1
 
 
-data Dist1D a = Dist1D { _distW :: !(Dist0D a)
-                       , _sumWX :: !a
+data Dist1D a = Dist1D { _distW  :: !(Dist0D a)
+                       , _sumWX  :: !a
                        , _sumWXX :: !a
                        } deriving (Generic, Show)
 
@@ -122,8 +120,8 @@ instance Fractional a => Fillable (Dist1D a) where
         & sumWXX +~ (w*x*x)
 
 
-data Dist2D a = Dist2D { _distX :: !(Dist1D a)
-                       , _distY :: !(Dist1D a)
+data Dist2D a = Dist2D { _distX  :: !(Dist1D a)
+                       , _distY  :: !(Dist1D a)
                        , _sumWXY :: !a
                        } deriving (Generic, Show)
 

@@ -46,6 +46,7 @@ fill h f comb = FoldM g (return h) return
   where
     g h' xs = do
       let (x, val) = f xs
+      return $ over (atVal x) (flip f val)
 
 
 data Obj =

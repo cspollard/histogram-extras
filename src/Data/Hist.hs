@@ -1,38 +1,37 @@
-{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE FlexibleContexts          #-}
-{-# LANGUAGE ScopedTypeVariables          #-}
+{-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE RankNTypes                #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TypeFamilies              #-}
 
 module Data.Hist
-    ( Histogram, histData, bins, overflows
-    , total, histDataUO
-    , addH, printHistogram, printDist1D, printDist2D
+    ( Histogram, histData, bins, outOfRange
+    , total, histDataUO, atVal
+    , hadd, printHistogram, printDist1D, printDist2D
     , module X
     ) where
 
 import           Control.Lens
-import Data.Text (Text)
-import qualified Data.Text as T
-import           Data.Semigroup
 import           Data.Histogram.Cereal    ()
-import           Data.Vector.Generic (Vector)
-import qualified Data.Vector.Generic as VG
 import           Data.Histogram.Generic   (Histogram)
 import qualified Data.Histogram.Generic   as G
-import qualified Data.Hist.Internal       as I
+import           Data.Semigroup
+import           Data.Text                (Text)
+import qualified Data.Text                as T
+import           Data.Vector.Generic      (Vector)
+import qualified Data.Vector.Generic      as VG
 
--- import           Data.Weighted as X
--- import           Data.Fillable as X
+import           Data.Dist                as X
+import           Data.Fillable            as X
+import           Data.Histogram.Bin       as X
 import           Data.Histogram.Bin.Fixed as X
-import           Data.Histogram.Bin as X
-import           Data.Dist as X
+import           Data.Weighted            as X
 
 
 histData :: (Vector v a, Bin b) => Lens' (Histogram v b a) (v a)
-histData = lens G.histData f
-    where f h = G.histogramUO (view bins h) (view overflows h)
+histData f h = G.histogramUO (G.bins h) (G.outOfRange h) <$> f (G.histData h)
 
 histDataUO
   :: (Vector v a, Traversable v, Bin b)
@@ -44,39 +43,56 @@ histDataUO f h = G.histogramUO b <$> uo <*> v
       uo = (traverse.both) f $ G.outOfRange h
 
 
-overflows :: (Vector v a, Bin b) => Lens' (Histogram v b a) (Maybe (a, a))
-overflows = lens G.outOfRange f
-    -- force uo to be strict
-    where
-        f h uo =
-            let g = G.histogramUO (view bins h) uo (view histData h)
-            in case uo of
-                Just (x, y) -> x `seq` y `seq` g
-                Nothing -> g
+outOfRange :: (Vector v a, Bin b) => Lens' (Histogram v b a) (Maybe (a, a))
+outOfRange f h =
+  let uo = f $ G.outOfRange h
+      g uo' = G.histogramUO (G.bins h) uo' (G.histData h)
+  in g <$> uo
 
 
 bins :: (Vector v a, Bin b) => Lens' (Histogram v b a) b
-bins = lens G.bins f
-    where f h bs = G.histogramUO bs (view overflows h) (view histData h)
+bins f h =
+  let b = f $ G.bins h
+      g b' = G.histogramUO b' (G.outOfRange h) (G.histData h)
+  in g <$> b
 
 total :: (Vector v a, Traversable v, Bin b, Monoid a) => Histogram v b a -> a
 total = foldOf histDataUO
 
-addH
+hadd
   :: (Vector v a, Semigroup a, BinEq b)
-  => Histogram v b a -> Histogram v b a -> Histogram v b a
-addH = I.hadd
+  => Histogram v b a -> Histogram v b a -> Maybe (Histogram v b a)
+hadd h h' = do
+  let uo = view outOfRange h
+      uo' = view outOfRange h'
+      b = view bins h
+  oor <- addMaybe uo uo'
+
+  if not $ b `binEq` view bins h'
+    then Nothing
+    else
+      let v = view histData h
+          v' = view histData h'
+      in Just . G.histogramUO b oor $ VG.zipWith (<>) v v'
+
+  where
+    addMaybe (Just (x, y)) (Just (x', y')) = Just $ Just (x<>x', y<>y')
+    addMaybe Nothing Nothing               = Just Nothing
+    addMaybe _ _                           = Nothing
 
 
-atVal :: (Vector v a, Bin b) => BinValue b -> Lens' (Histogram v b a) a
+atVal
+  :: (Ixed (v a), Index (v a) ~ Int, IxValue (v a) ~ a, Vector v a, Bin b)
+  => BinValue b -> Traversal' (Histogram v b a) a
 atVal x f h =
   let b = view bins h
-      nb = nBins bins
+      nb = nBins b
       i = toIndex b x
   in case i `compare` nb of
-    GT -> over (overflows._Just._1) f h
-    LT -> over (overflows._Just._2) f h
-    EQ -> over (histData.element i) f h
+    GT -> (outOfRange._Just._1) f h
+    LT -> (outOfRange._Just._2) f h
+    EQ -> (histData.ix i) f h
+
 
 printDist1D :: Show a => Dist1D a -> Text
 printDist1D d =
@@ -107,7 +123,7 @@ printHistogram
 printHistogram showContents h =
   T.unlines
     $ "Total\tTotal\t" <> showContents (total h)
-      : maybe ls (\x -> uo x ++ ls) (view overflows h)
+      : maybe ls (\x -> uo x ++ ls) (view outOfRange h)
 
   where
     uo (u, o) =
@@ -126,27 +142,30 @@ printHistogram showContents h =
 
     bs = views bins binsList h
 
--- instance (Weighted a, Fractional (Weight a), Bin b, Traversable v, Vector v a, Semigroup a, Monoid a)
---     => Weighted (Histogram v b a) where
---
---     type Weight (Histogram v b a) = Weight a
---
---     scaling = over histDataUO . scaling
---
---     integral = lens getInt normTo
---         where
---             normTo h w =
---               let (s, h') = mapAccumLOf histDataUO (\s' x -> (s' <> x, scaling i x)) mempty h
---                   i = w / view integral s
---               in h'
---
---             getInt = view integral . total
---
---
--- instance
---   ( Semigroup a, Monoid a, Weighted a, Fractional (Weight a), Fillable a
---   , Traversable v, Vector v a, Bin b, BinValue b ~ FillVec a )
---   => Fillable (Histogram v b a) where
---
---     type FillVec (Histogram v b a) = FillVec a
---     filling w x = I.filling w x x
+instance
+    ( Weighted a, Fractional (Weight a), Bin b, Traversable v, Vector v a
+    , Monoid a
+    ) => Weighted (Histogram v b a) where
+
+    type Weight (Histogram v b a) = Weight a
+
+    scaling = over histDataUO . scaling
+
+    integral = lens getInt normTo
+        where
+            normTo h w =
+              let (s, h') = mapAccumLOf histDataUO (\s' x -> (s' `mappend` x, scaling i x)) mempty h
+                  i = w / view integral s
+              in h'
+
+            getInt = view integral . total
+
+
+instance
+  ( Monoid a, Weighted a, Fractional (Weight a), Fillable a
+  , Traversable v, Vector v a, Ixed (v a), Index (v a) ~ Int, IxValue (v a) ~ a
+  , Bin b
+  ) => Fillable (Histogram v b a) where
+
+    type FillVec (Histogram v b a) = (BinValue b, FillVec a)
+    filling w (x, val) = over (atVal x) (filling w val)
