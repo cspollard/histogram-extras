@@ -1,52 +1,56 @@
-{-# LANGUAGE DeriveGeneric          #-}
-{-# LANGUAGE TemplateHaskell          #-}
-{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE DeriveGeneric             #-}
 {-# LANGUAGE FlexibleContexts          #-}
+{-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE TemplateHaskell           #-}
+{-# LANGUAGE TypeFamilies              #-}
 
 module Data.YODA.Obj
-  ( YodaHist
+  ( HistFill
   , Obj(..), _H1DD, _P1DD
   , YodaObj
   , YodaFolder
+  , fill
   , printProf, printHist
   , printYodaObj
   , mergeYO, mergeYF
   , module X
   ) where
 
-import GHC.Generics
-import           Data.Serialize
-import           Control.Foldl
+import qualified Control.Foldl       as F
 import           Control.Lens
-import           Data.Text      (Text)
-import qualified Data.Text      as T
-import qualified Data.Map       as M
-import           Data.Semigroup ((<>))
-import           Data.Annotated as X
-import qualified Data.Vector.Generic    as VG
-import qualified Data.Vector.Generic.Mutable    as VGM
+import           Data.Annotated      as X
+import qualified Data.Map            as M
+import           Data.Semigroup      ((<>))
+import           Data.Serialize
+import           Data.Text           (Text)
+import qualified Data.Text           as T
+import qualified Data.Vector         as V
+import qualified Data.Vector.Generic as VG
+import qualified Data.Vector.Unboxed as VU
+import           GHC.Generics
 
-import           Data.Hist      as X
+import           Data.Hist           as X
 
-type HistFill m v a b c = FoldM m a (Histogram v b c)
+type HistFill v b a c = F.Fold a (Histogram v b c)
 
--- TODO
--- these fns could all be monadic...
--- do I really want PrimMonads here?
--- is V.modify strict?
+-- convert everything to Unbox vectors in order to make sure updating is strict
 fill
-  :: (Bin b, Monad m)
+  :: forall v a b c d. (VG.Vector v c, VU.Unbox c, Bin b)
   => Histogram v b c
   -> (a -> (BinValue b, d))
   -> (c -> d -> c)
-  -> HistFill m v a b c
-fill h f comb = FoldM g (return h) return
+  -> HistFill v b a c
+fill h f comb = F.Fold g h' (over histData VG.convert)
   where
-    g h' xs = do
+    h' :: Histogram VU.Vector b c
+    h' = over histData VG.convert h
+    g h'' xs =
       let (x, val) = f xs
-      return $ over (atVal x) (flip f val)
+      in over (atVal x) (`comb` val) h''
+
 
 
 data Obj =
@@ -64,9 +68,9 @@ type YodaFolder = M.Map Text YodaObj
 
 mergeYO :: YodaObj -> YodaObj -> Maybe YodaObj
 Annotated a (H1DD h) `mergeYO` Annotated _ (H1DD h') =
-  Just . Annotated a . H1DD $ addH h h'
+  Annotated a . H1DD <$> hadd h h'
 Annotated a (P1DD p) `mergeYO` Annotated _ (P1DD p') =
-  Just . Annotated a . P1DD $ addH p p'
+  Annotated a . P1DD <$> hadd p p'
 mergeYO _ _ = Nothing
 
 mergeYF :: YodaFolder -> YodaFolder -> YodaFolder
@@ -74,8 +78,8 @@ mergeYF yf yf' = M.mapMaybe id $ M.intersectionWith mergeYO yf yf'
 
 
 printHist
-  :: ( IntervalBin b, Vector v Text, Vector v (Dist1D a)
-     , Vector v (BinValue b, BinValue b), Traversable v, Show (BinValue b)
+  :: ( IntervalBin b, VG.Vector v Text, VG.Vector v (Dist1D a)
+     , VG.Vector v (BinValue b, BinValue b), Traversable v, Show (BinValue b)
      , Show a, Num a )
   => Text -> Annotated (Histogram v b (Dist1D a)) -> Text
 printHist pa (Annotated as h) =
@@ -91,8 +95,8 @@ printHist pa (Annotated as h) =
       ]
 
 printProf
-  :: ( IntervalBin b, Vector v Text, Vector v (Dist2D a)
-     , Vector v (BinValue b, BinValue b), Traversable v, Show (BinValue b)
+  :: ( IntervalBin b, VG.Vector v Text, VG.Vector v (Dist2D a)
+     , VG.Vector v (BinValue b, BinValue b), Traversable v, Show (BinValue b)
      , Show a, Num a )
   => Text -> Annotated (Histogram v b (Dist2D a)) -> Text
 printProf pa (Annotated as p) =

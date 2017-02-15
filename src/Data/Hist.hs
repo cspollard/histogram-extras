@@ -8,7 +8,7 @@
 
 module Data.Hist
     ( Histogram, histData, bins, outOfRange
-    , total, histDataUO, atVal
+    , total, histVals, atVal, atIdx
     , hadd, printHistogram, printDist1D, printDist2D
     , module X
     ) where
@@ -30,13 +30,14 @@ import           Data.Histogram.Bin.Fixed as X
 import           Data.Weighted            as X
 
 
-histData :: (Vector v a, Bin b) => Lens' (Histogram v b a) (v a)
+histData :: (Bin b, VG.Vector v' a)
+          => Lens (Histogram v b a) (Histogram v' b a) (v a) (v' a)
 histData f h = G.histogramUO (G.bins h) (G.outOfRange h) <$> f (G.histData h)
 
-histDataUO
+histVals
   :: (Vector v a, Traversable v, Bin b)
   => Traversal' (Histogram v b a) a
-histDataUO f h = G.histogramUO b <$> uo <*> v
+histVals f h = G.histogramUO b <$> uo <*> v
     where
       b = G.bins h
       v = traverse f $ G.histData h
@@ -57,7 +58,7 @@ bins f h =
   in g <$> b
 
 total :: (Vector v a, Traversable v, Bin b, Monoid a) => Histogram v b a -> a
-total = foldOf histDataUO
+total = foldOf histVals
 
 hadd
   :: (Vector v a, Semigroup a, BinEq b)
@@ -82,16 +83,22 @@ hadd h h' = do
 
 
 atVal
-  :: (Ixed (v a), Index (v a) ~ Int, IxValue (v a) ~ a, Vector v a, Bin b)
+  :: (Vector v a, Bin b)
   => BinValue b -> Traversal' (Histogram v b a) a
 atVal x f h =
   let b = view bins h
       nb = nBins b
       i = toIndex b x
-  in case i `compare` nb of
-    GT -> (outOfRange._Just._1) f h
-    LT -> (outOfRange._Just._2) f h
-    EQ -> (histData.ix i) f h
+      k | i < 0 = (outOfRange._Just._1) f h
+        | i >= nb = (outOfRange._Just._2) f h
+        | otherwise = (histData . atIdx i) f h
+  in k
+
+atIdx :: (Vector v t, Applicative f) => Int -> (t -> f t) -> v t -> f (v t)
+atIdx i f v =
+  case v VG.!? i of
+    Just x  -> (\y -> v VG.// [(i, y)]) <$> f x
+    Nothing -> pure v
 
 
 printDist1D :: Show a => Dist1D a -> Text
@@ -144,17 +151,17 @@ printHistogram showContents h =
 
 instance
     ( Weighted a, Fractional (Weight a), Bin b, Traversable v, Vector v a
-    , Monoid a
-    ) => Weighted (Histogram v b a) where
+    , Monoid a )
+    => Weighted (Histogram v b a) where
 
     type Weight (Histogram v b a) = Weight a
 
-    scaling = over histDataUO . scaling
+    scaling = over histVals . scaling
 
     integral = lens getInt normTo
         where
             normTo h w =
-              let (s, h') = mapAccumLOf histDataUO (\s' x -> (s' `mappend` x, scaling i x)) mempty h
+              let (s, h') = mapAccumLOf histVals (\s' x -> (s' `mappend` x, scaling i x)) mempty h
                   i = w / view integral s
               in h'
 
@@ -163,9 +170,8 @@ instance
 
 instance
   ( Monoid a, Weighted a, Fractional (Weight a), Fillable a
-  , Traversable v, Vector v a, Ixed (v a), Index (v a) ~ Int, IxValue (v a) ~ a
-  , Bin b
-  ) => Fillable (Histogram v b a) where
+  , Traversable v, Vector v a, Bin b )
+  => Fillable (Histogram v b a) where
 
     type FillVec (Histogram v b a) = (BinValue b, FillVec a)
     filling w (x, val) = over (atVal x) (filling w val)
