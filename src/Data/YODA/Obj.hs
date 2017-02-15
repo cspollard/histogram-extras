@@ -30,8 +30,8 @@ import           Data.Hist      as X
 
 
 data Obj =
-  H1DD !(Histo1D (ArbBin Double) (Dist1D Double))
-  | P1DD !(Histo1D (ArbBin Double) (Dist2D Double))
+  H1DD !(Hist1D (ArbBin Double))
+  | P1DD !(Prof1D (ArbBin Double))
   deriving (Generic, Show)
 
 makePrisms ''Obj
