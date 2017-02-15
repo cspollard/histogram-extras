@@ -66,7 +66,7 @@ instance Fractional a => Weighted (Dist0D a) where
 
 instance Fractional a => Fillable (Dist0D a) where
     type FillVec (Dist0D a) = ()
-    filling w () d = d
+    filling () w d = d
         & sumW +~ w
         & sumWW +~ (w*w)
         & nentries +~ 1
@@ -114,8 +114,8 @@ instance Fractional a => Weighted (Dist1D a) where
 
 instance Fractional a => Fillable (Dist1D a) where
     type FillVec (Dist1D a) = a
-    filling w x d = d
-        & distW %~ filling w ()
+    filling x w d = d
+        & distW %~ filling () w
         & sumWX +~ (w*x)
         & sumWXX +~ (w*x*x)
 
@@ -159,9 +159,9 @@ instance Fractional a => Weighted (Dist2D a) where
 
 instance Fractional a => Fillable (Dist2D a) where
     type FillVec (Dist2D a) = (a, a)
-    filling w (x, y) d = d
-        & distX %~ filling w x
-        & distY %~ filling w y
+    filling (x, y) w d = d
+        & distX %~ filling x w
+        & distY %~ filling y w
         & sumWXY +~ (w*x*y)
 
 

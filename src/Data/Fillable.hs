@@ -6,17 +6,17 @@ import           Data.Weighted
 
 class Weighted a => Fillable a where
   type FillVec a :: *
-  filling :: Weight a -> FillVec a -> a -> a
+  filling :: FillVec a -> Weight a -> a -> a
 
 
 instance Fillable Int where
-  type FillVec Int = Int
-  filling x _ = (+ x)
+  type FillVec Int = ()
+  filling _ x = (+ x)
 
 instance Fillable Float where
-  type FillVec Float = Float
-  filling x _ = (+ x)
+  type FillVec Float = ()
+  filling _ x = (+ x)
 
 instance Fillable Double where
-  type FillVec Double = Double
-  filling x _ = (+ x)
+  type FillVec Double = ()
+  filling _ x = (+ x)

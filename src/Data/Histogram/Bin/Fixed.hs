@@ -22,6 +22,7 @@ module Data.Histogram.Bin.Fixed
   , BinTransform (..)
   , LogBT, Log10BT
   , Sized(..)
+  , Log10Bin, IntBin
   ) where
 
 import Data.Vector.Serialize ()
@@ -246,3 +247,7 @@ instance Sized (FixedBin n min max a) where
 
 instance Sized (TransformedBin b bt) where
   type Size (TransformedBin b bt) = Size b
+
+type IntBin (min :: Nat) (max :: Nat) a = FixedBin (max-min) min max a
+type Log10Bin (n :: Nat) (min :: Nat) (max :: Nat) a =
+  TransformedBin (FixedBin n min max a) (Log10BT a)

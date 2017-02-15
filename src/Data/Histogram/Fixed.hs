@@ -7,8 +7,9 @@ module Data.Histogram.Fixed
   ) where
 
 
+
 import           Data.Histogram.Bin.Fixed as X
-import           Data.Histogram.Generic   as X
+import           Data.Histogram.Generic
 import           Data.Proxy
 import           Linear.V
 

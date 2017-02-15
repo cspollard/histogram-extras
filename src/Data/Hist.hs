@@ -9,7 +9,9 @@
 module Data.Hist
     ( Histogram, histData, bins, outOfRange
     , total, histVals, atVal, atIdx
-    , HistFill, histFill
+    , histFill
+    , Hist1D, Hist1DFill, hist1DFill
+    , Prof1D, Prof1DFill, prof1DFill
     , hadd, printHistogram, printDist1D, printDist2D
     , module X
     ) where
@@ -22,6 +24,7 @@ import qualified Data.Histogram.Generic   as G
 import           Data.Semigroup
 import           Data.Text                (Text)
 import qualified Data.Text                as T
+import qualified Data.Vector              as V
 import qualified Data.Vector.Generic      as VG
 import qualified Data.Vector.Unboxed      as VU
 
@@ -53,7 +56,7 @@ outOfRange f h =
   in g <$> uo
 
 
-bins :: (VG.Vector v a, Bin b) => Lens' (Histogram v b a) b
+bins :: (VG.Vector v a, Bin b') => Lens (Histogram v b a) (Histogram v b' a) b b'
 bins f h =
   let b = f $ G.bins h
       g b' = G.histogramUO b' (G.outOfRange h) (G.histData h)
@@ -102,16 +105,19 @@ atIdx i f v =
     Just x  -> (\y -> v VG.// [(i, y)]) <$> f x
     Nothing -> pure v
 
+type Hist1DFill b a = F.Fold a (Hist1D b)
+type Hist1D b = Histogram V.Vector b (Dist1D Double)
 
-type HistFill v b a c = F.Fold a (Histogram v b c)
+type Prof1DFill b a = F.Fold a (Prof1D b)
+type Prof1D b = Histogram V.Vector b (Dist2D Double)
 
--- convert everything to Unbox vectors in order to make sure updating is strict
+-- convert everything to Unbox vectors in order to be sure updating is strict
 histFill
   :: forall v a b c d. (VG.Vector v c, VU.Unbox c, Bin b)
   => Histogram v b c
   -> (a -> (BinValue b, d))
   -> (c -> d -> c)
-  -> HistFill v b a c
+  -> F.Fold a (Histogram v b c)
 histFill h f comb = F.Fold g h' (over histData VG.convert)
   where
     h' :: Histogram VU.Vector b c
@@ -120,11 +126,17 @@ histFill h f comb = F.Fold g h' (over histData VG.convert)
       let (x, val) = f xs
       in over (atVal x) (`comb` val) h''
 
+hist1DFill :: (Bin b, BinValue b ~ Double) => Hist1D b -> Hist1DFill b (Double, Double)
+hist1DFill h = histFill h (\(x, w) -> (x, (x, w))) (flip $ uncurry filling)
+
+prof1DFill :: (Bin b, BinValue b ~ Double) => Prof1D b -> Prof1DFill b ((Double, Double), Double)
+prof1DFill h = histFill h (\((x, y), w) -> (x, ((x, y), w))) (flip $ uncurry filling)
+
 
 
 printDist1D :: Show a => Dist1D a -> Text
 printDist1D d =
-  T.intercalate "\t" . map T.pack
+  T.intercalate "\t" . fmap T.pack
     $ [ views (distW . sumW) show d
       , views (distW . sumWW) show d
       , views sumWX show d
@@ -195,4 +207,4 @@ instance
   => Fillable (Histogram v b a) where
 
     type FillVec (Histogram v b a) = (BinValue b, FillVec a)
-    filling w (x, val) = over (atVal x) (filling w val)
+    filling (x, val) w = over (atVal x) (filling val w)
