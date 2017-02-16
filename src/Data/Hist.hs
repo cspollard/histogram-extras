@@ -113,7 +113,7 @@ type Hist1D b = Histogram V.Vector b (Dist1D Double)
 type Prof1DFill b a = F.Fold a (Prof1D b)
 type Prof1D b = Histogram V.Vector b (Dist2D Double)
 
--- convert everything to Unbox vectors in order to be sure updating is strict
+-- convert everything to Unbox vectors to be sure updating is strict
 histFill
   :: forall v a b c d. (VG.Vector v c, VU.Unbox c, Bin b)
   => Histogram v b c

@@ -25,8 +25,8 @@ library
                      , Data.Histogram.Bin.Fixed
                      , Data.Histogram.Fixed
 
-  other-modules:       Data.Hist.Internal
-  other-extensions:    OverloadedStrings, DeriveGeneric, TypeFamilies, TemplateHaskell, NoMonomorphismRestriction, FlexibleContexts
+  other-modules:
+  other-extensions:
   build-depends:       base == 4.9.*
                      , lens == 4.14.*
                      , vector == 0.11.*

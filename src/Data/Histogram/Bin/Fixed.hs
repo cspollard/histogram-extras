@@ -148,7 +148,7 @@ instance (Ord a, Fractional a, Epsilon a)
   => BinEq (ArbBin a) where
   binEq (ArbBin n _ v _) (ArbBin n' _ v' _) =
     (n == n')
-      && all nearZero ((-) <$> v <*> v')
+      && all nearZero (V.zipWith (-) v v')
 
 
 class BinTransform bt where
