@@ -52,7 +52,9 @@ histVals f h = G.histogramUO b <$> uo <*> v
 outOfRange :: (VG.Vector v a, Bin b) => Lens' (Histogram v b a) (Maybe (a, a))
 outOfRange f h =
   let uo = f $ G.outOfRange h
-      g uo' = G.histogramUO (G.bins h) uo' (G.histData h)
+      -- make sure we are strict in overflows.
+      g (Just (x, y)) = x `seq` y `seq` G.histogramUO (G.bins h) (Just (x, y)) (G.histData h)
+      g uo'           = G.histogramUO (G.bins h) uo' (G.histData h)
   in g <$> uo
 
 
