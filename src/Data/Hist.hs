@@ -9,10 +9,10 @@
 module Data.Hist
     ( Histogram, histData, bins, outOfRange
     , total, histVals, atVal, atIdx
-    , histFill
+    , histFill, histFill'
     , Hist1D, Hist1DFill, hist1DFill
     , Prof1D, Prof1DFill, prof1DFill
-    , hadd, printHistogram, printDist1D, printDist2D
+    , hadd, hadd', printHistogram, printDist1D, printDist2D
     , module X
     ) where
 
@@ -39,34 +39,43 @@ histData :: (Bin b, VG.Vector v' a)
           => Lens (Histogram v b a) (Histogram v' b a) (v a) (v' a)
 histData f h = G.histogramUO (G.bins h) (G.outOfRange h) <$> f (G.histData h)
 
+
+seqMT :: Maybe (t, t1) -> Maybe (t, t1)
+seqMT (Just (x, y)) = x `seq` y `seq` Just (x, y)
+seqMT Nothing       = Nothing
+
+histogramUO :: (Bin bin, VG.Vector v a) => bin -> Maybe (a, a) -> v a -> Histogram v bin a
+histogramUO b = G.histogramUO b . seqMT
+
 histVals
   :: (VG.Vector v a, Traversable v, Bin b)
   => Traversal' (Histogram v b a) a
-histVals f h = G.histogramUO b <$> uo <*> v
+histVals f h = histogramUO b <$> uo <*> v
     where
       b = G.bins h
       v = traverse f $ G.histData h
       uo = (traverse.both) f $ G.outOfRange h
 
-
 outOfRange :: (VG.Vector v a, Bin b) => Lens' (Histogram v b a) (Maybe (a, a))
 outOfRange f h =
   let uo = f $ G.outOfRange h
       -- make sure we are strict in overflows.
-      g (Just (x, y)) = x `seq` y `seq` G.histogramUO (G.bins h) (Just (x, y)) (G.histData h)
-      g uo'           = G.histogramUO (G.bins h) uo' (G.histData h)
+      g uo' = histogramUO (G.bins h) uo' (G.histData h)
   in g <$> uo
 
 
 bins :: (VG.Vector v a, Bin b') => Lens (Histogram v b a) (Histogram v b' a) b b'
 bins f h =
   let b = f $ G.bins h
-      g b' = G.histogramUO b' (G.outOfRange h) (G.histData h)
+      g b' = histogramUO b' (G.outOfRange h) (G.histData h)
   in g <$> b
 
 total :: (VG.Vector v a, Traversable v, Bin b, Monoid a) => Histogram v b a -> a
 total = foldOf histVals
 
+
+-- this evaluates the hadded histogram to WHNF before returning
+-- however it does NOT explicitly evaluate all values in the underlying vector
 hadd
   :: (VG.Vector v a, Semigroup a, BinEq b)
   => Histogram v b a -> Histogram v b a -> Maybe (Histogram v b a)
@@ -81,12 +90,24 @@ hadd h h' = do
     else
       let v = view histData h
           v' = view histData h'
-      in Just . G.histogramUO b oor $ VG.zipWith (<>) v v'
+          h'' = histogramUO b oor $ VG.zipWith (<>) v v'
+      in Just $! h''
 
   where
     addMaybe (Just (x, y)) (Just (x', y')) = Just $ Just (x<>x', y<>y')
     addMaybe Nothing Nothing               = Just Nothing
     addMaybe _ _                           = Nothing
+
+-- explicitly evaluates all values in the underlying vector
+hadd'
+  :: (VG.Vector v a, Semigroup a, BinEq b)
+  => Histogram v b a -> Histogram v b a -> Maybe (Histogram v b a)
+hadd' h h' =
+  case hadd h h' of
+    Nothing  -> Nothing
+    Just h'' -> Just $! over histData whnfElements h''
+  where
+    whnfElements v = VG.foldl' (flip seq) () v `seq` v
 
 
 atVal
@@ -113,14 +134,27 @@ type Hist1D b = Histogram V.Vector b (Dist1D Double)
 type Prof1DFill b a = F.Fold a (Prof1D b)
 type Prof1D b = Histogram V.Vector b (Dist2D Double)
 
--- convert everything to Unbox vectors to be sure updating is strict
 histFill
+  :: forall v a b c d. (VG.Vector v c, Bin b)
+  => Histogram v b c
+  -> (a -> (BinValue b, d))
+  -> (c -> d -> c)
+  -> F.Fold a (Histogram v b c)
+histFill h f comb = F.Fold g h id
+  where
+    g h'' xs =
+      let (x, val) = f xs
+      in over (atVal x) (`comb` val) h''
+
+-- strict version of histFill
+-- convert everything to Unbox vectors to be sure updating is strict
+histFill'
   :: forall v a b c d. (VG.Vector v c, VU.Unbox c, Bin b)
   => Histogram v b c
   -> (a -> (BinValue b, d))
   -> (c -> d -> c)
   -> F.Fold a (Histogram v b c)
-histFill h f comb = F.Fold g h' (over histData VG.convert)
+histFill' h f comb = F.Fold g h' (over histData VG.convert)
   where
     h' :: Histogram VU.Vector b c
     h' = over histData VG.convert h
@@ -129,10 +163,10 @@ histFill h f comb = F.Fold g h' (over histData VG.convert)
       in over (atVal x) (`comb` val) h''
 
 hist1DFill :: (Bin b, BinValue b ~ Double) => Hist1D b -> Hist1DFill b (Double, Double)
-hist1DFill h = histFill h (\(x, w) -> (x, (x, w))) (flip $ uncurry filling)
+hist1DFill h = histFill' h (\(x, w) -> (x, (x, w))) (flip $ uncurry filling)
 
 prof1DFill :: (Bin b, BinValue b ~ Double) => Prof1D b -> Prof1DFill b ((Double, Double), Double)
-prof1DFill h = histFill h (\((x, y), w) -> (x, ((x, y), w))) (flip $ uncurry filling)
+prof1DFill h = histFill' h (\((x, y), w) -> (x, ((x, y), w))) (flip $ uncurry filling)
 
 
 

@@ -17,16 +17,15 @@ module Data.YODA.Obj
   ) where
 
 import           Control.Lens
-import           Data.Annotated as X
-import qualified Data.Map       as M
-import           Data.Semigroup ((<>))
+import qualified Data.Map.Strict as M
+import           Data.Semigroup  ((<>))
 import           Data.Serialize
-import           Data.Text      (Text)
-import qualified Data.Text      as T
-import qualified Data.Vector    as V
+import           Data.Text       (Text)
+import qualified Data.Text       as T
 import           GHC.Generics
 
-import           Data.Hist      as X
+import           Data.Annotated  as X
+import           Data.Hist       as X
 
 
 data Obj =
@@ -44,9 +43,9 @@ type YodaFolder = M.Map Text YodaObj
 
 mergeYO :: YodaObj -> YodaObj -> Maybe YodaObj
 Annotated a (H1DD h) `mergeYO` Annotated _ (H1DD h') =
-  Annotated a . H1DD <$> hadd h h'
+  Annotated a . H1DD <$> hadd' h h'
 Annotated a (P1DD p) `mergeYO` Annotated _ (P1DD p') =
-  Annotated a . P1DD <$> hadd p p'
+  Annotated a . P1DD <$> hadd' p p'
 mergeYO _ _ = Nothing
 
 mergeYF :: YodaFolder -> YodaFolder -> YodaFolder
