@@ -25,9 +25,8 @@ library
                      , Data.Histogram.Bin.Fixed
                      , Data.Histogram.Fixed
 
-  other-modules:       Data.Histogram.Internal.T
-                     , Data.Histogram.Internal.TriMat
-  other-extensions:
+  -- other-modules:
+  -- other-extensions:
   build-depends:       base == 4.9.*
                      , lens == 4.14.*
                      , vector == 0.11.*

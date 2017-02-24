@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans      #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
@@ -135,15 +136,15 @@ type Prof1DFill b a = F.Fold a (Prof1D b)
 type Prof1D b = Histogram V.Vector b (Dist2D Double)
 
 histFill
-  :: forall v a b c d. (VG.Vector v c, Bin b)
+  :: (VG.Vector v c, Bin b)
   => Histogram v b c
-  -> (a -> (BinValue b, d))
+  -> (a -> (d, BinValue b))
   -> (c -> d -> c)
   -> F.Fold a (Histogram v b c)
 histFill h f comb = F.Fold g h id
   where
     g h'' xs =
-      let (x, val) = f xs
+      let (val, x) = f xs
       in over (atVal x) (`comb` val) h''
 
 -- strict version of histFill
@@ -151,7 +152,7 @@ histFill h f comb = F.Fold g h id
 histFill'
   :: forall v a b c d. (VG.Vector v c, VU.Unbox c, Bin b)
   => Histogram v b c
-  -> (a -> (BinValue b, d))
+  -> (a -> (d, BinValue b))
   -> (c -> d -> c)
   -> F.Fold a (Histogram v b c)
 histFill' h f comb = F.Fold g h' (over histData VG.convert)
@@ -159,37 +160,38 @@ histFill' h f comb = F.Fold g h' (over histData VG.convert)
     h' :: Histogram VU.Vector b c
     h' = over histData VG.convert h
     g h'' xs =
-      let (x, val) = f xs
+      let (val, x) = f xs
       in over (atVal x) (`comb` val) h''
 
 hist1DFill :: (Bin b, BinValue b ~ Double) => Hist1D b -> Hist1DFill b (Double, Double)
-hist1DFill h = histFill' h (\(x, w) -> (x, (x, w))) (flip $ uncurry filling)
+hist1DFill h = histFill' h (\(x, w) -> ((Only x, w), x)) (flip $ uncurry filling)
 
 prof1DFill :: (Bin b, BinValue b ~ Double) => Prof1D b -> Prof1DFill b ((Double, Double), Double)
-prof1DFill h = histFill' h (\((x, y), w) -> (x, ((x, y), w))) (flip $ uncurry filling)
+prof1DFill h = histFill' h (\((x, y), w) -> ((Pair x y, w), x)) (flip $ uncurry filling)
 
 
 
 printDist1D :: Show a => Dist1D a -> Text
 printDist1D d =
   T.intercalate "\t" . fmap T.pack
-    $ [ views (distW . sumW) show d
-      , views (distW . sumWW) show d
-      , views sumWX show d
-      , views sumWXX show d
-      , views (distW . nentries) show d
+    $ [ views sumW show d
+      , views sumWW show d
+      , views sumWX (show.fromOnly) d
+      , views sumWXY (show.fromOnly.fromOnly) d
+      , views nentries show d
       ]
+  where fromOnly (Only x) = x
 
 printDist2D :: Show a => Dist2D a -> Text
 printDist2D d =
   T.intercalate "\t" . map T.pack
-    $ [ views (distX . distW . sumW) show d
-      , views (distX . distW . sumWW) show d
-      , views (distX . sumWX) show d
-      , views (distX . sumWXX) show d
-      , views (distY . sumWX) show d
-      , views (distY . sumWXX) show d
-      , views (distX . distW . nentries) show d
+    $ [ views sumW show d
+      , views sumWW show d
+      , views (sumWX . _1) show d
+      , views (sumWXY . _1 . _1) show d
+      , views (sumWX . _2) show d
+      , views (sumWXY . _2 . _2) show d
+      , views nentries show d
       ]
 
 printHistogram

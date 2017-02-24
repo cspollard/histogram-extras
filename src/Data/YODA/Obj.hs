@@ -31,7 +31,7 @@ import           Data.Hist       as X
 data Obj =
   H1DD !(Hist1D (ArbBin Double))
   | P1DD !(Prof1D (ArbBin Double))
-  deriving (Generic, Show)
+  deriving Generic
 
 makePrisms ''Obj
 

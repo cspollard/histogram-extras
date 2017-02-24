@@ -1,4 +1,3 @@
-{-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -8,79 +7,99 @@
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
 module Data.Dist
   ( DistND(..), sumW, sumWW, sumWX, sumWXY, nentries
   , Dist0D, Dist1D, Dist2D
+  , Pair(..), Only(..), Empty(..)
   ) where
 
 import           Control.Lens
+import           Data.Semigroup
 import           Data.Serialize
-import qualified Data.Vector.Unboxed            as U
+import           Data.Vector.Fixed            as V
+import qualified Data.Vector.Unboxed          as U
 import           Data.Vector.Unboxed.Deriving
-import           GHC.Generics
-import           GHC.TypeLits
-import           Linear.V
-import           Linear.Vector
+import           GHC.Generics                 hiding (S, V1)
 
 import           Data.Fillable
-import           Data.Histogram.Internal.TriMat
+import           Data.Histogram.Instances ()
 import           Data.Weighted
 
 
-fillV :: (KnownNat n, Num a) => a -> V n a -> V n a -> V n a
-fillV w v v' = (w *^ v) ^+^ v'
-
-
-data DistND n a =
+data DistND v a =
   DistND
     { _sumW     :: !a
     , _sumWW    :: !a
-    , _sumWX    :: !(V n a)
-    , _sumWXY   :: !(TriMat n a)
+    , _sumWX    :: !(v a)
+    , _sumWXY   :: !(v (v a))
     , _nentries :: !Int
     } deriving Generic
 
-instance (KnownNat n, KnownNat (Tri n), Serialize a)
-  => Serialize (DistND n a) where
-
-type Dist0D a = DistND 0 a
-type Dist1D a = DistND 1 a
-type Dist2D a = DistND 2 a
-
 makeLenses ''DistND
 
-instance
-  ( KnownNat n, Monoid a, Monoid (TriMat n a) )
-  => Monoid (DistND n a) where
+instance (Serialize a, Serialize (v a), Serialize (v (v a)))
+  => Serialize (DistND v a) where
 
-  DistND sw sww swx swxy n `mappend` DistND sw' sww' swx' swxy' n' =
+type Dist0D a = DistND Empty a
+type Dist1D a = DistND Only a
+type Dist2D a = DistND Pair a
+
+-- strict tuple type
+data Pair a = Pair !a !a deriving (Generic, Show)
+
+instance Serialize a => Serialize (Pair a) where
+
+instance Field1 (Pair a) (Pair a) a a where
+  _1 f (Pair x y) = (`Pair` y) <$> f x
+
+instance Field2 (Pair a) (Pair a) a a where
+  _2 f (Pair x y) = Pair x <$> f y
+
+type instance Dim Pair = S (S Z)
+instance V.Vector Pair a where
+  construct = Fun Pair
+  inspect (Pair x y) (Fun f) = f x y
+
+
+instance (Num a, Vector v a, Vector v (v a)) => Semigroup (DistND v a) where
+
+  DistND sw sww swx swxy n <> DistND sw' sww' swx' swxy' n' =
     DistND
-      (sw `mappend` sw')
-      (sww `mappend` sww')
-      (mappend <$> swx <*> swx')
-      (swxy `mappend` swxy')
-      (n+n')
+      (sw + sw')
+      (sww + sww')
+      (V.zipWith (+) swx swx')
+      (V.zipWith (V.zipWith (+)) swxy swxy')
+      (n + n')
 
-  mempty = DistND mempty mempty (pure mempty) mempty 0
+instance (Num a, Vector v a, Vector v (v a)) => Monoid (DistND v a) where
 
+  mappend = (<>)
+
+  mempty =
+    DistND 0 0 (V.replicate 0) (V.replicate $ V.replicate 0) 0
+
+
+derivingUnbox "Pair"
+  [t| forall a. U.Unbox a => Pair a -> (a, a) |]
+  [| \(Pair x y) -> (x, y) |]
+  [| uncurry Pair |]
 
 derivingUnbox "DistND"
-  [t| forall a n. (KnownNat n, U.Unbox a, U.Unbox (TriMat n a)) => DistND n a -> (a, a, V n a, TriMat n a, Int) |]
+  [t| forall a v. (U.Unbox a, U.Unbox (v a), U.Unbox (v (v a))) => DistND v a -> (a, a, v a, v (v a), Int) |]
   [| \(DistND sw sww swx swxy n) -> (sw, sww, swx, swxy, n) |]
   [| \(sw, sww, swx, swxy, n) -> DistND sw sww swx swxy n |]
 
 
-instance (Functor (TriMat n), Fractional a) => Weighted (DistND n a) where
-  type Weight (DistND n a) = a
+instance (Vector v a, Vector v (v a), Fractional a) => Weighted (DistND v a) where
+  type Weight (DistND v a) = a
   scaling w (DistND sw sww swx swxy n) =
     DistND
       (sw*w)
       (sww*w*w)
-      (w *^ swx)
-      ((*w) <$> swxy)
+      (V.map (*w) swx)
+      (V.map (V.map (*w)) swxy)
       n
 
   integral =
@@ -89,16 +108,15 @@ instance (Functor (TriMat n), Fractional a) => Weighted (DistND n a) where
     (\d w -> let wr = w / view sumW d in scaling wr d)
 
 
--- TODO
--- this is kind of inelegant
--- it loops explicitly over indices...
-fillCov
-  :: (KnownNat (Tri n), KnownNat n, Num a)
-  => a -> V n a -> TriMat n a -> TriMat n a
-fillCov w v = imap $ \(i, j) x -> x + w*(v ^?! ix i)*(v ^?! ix j)
+outerV :: (Num a, Vector v a, Vector v (v a)) => v a -> v a -> v (v a)
+outerV v v' = V.generate (\i -> V.map (* (v V.! i)) v')
 
-instance (KnownNat n, KnownNat (Tri n), Functor (TriMat n), Fractional a)
-  => Fillable (DistND n a) where
-    type FillVec (DistND n a) = V n a
+instance (Vector v a, Vector v (v a), Fractional a) => Fillable (DistND v a) where
+    type FillVec (DistND v a) = v a
     filling v w (DistND sw sww swx swxy n) =
-      DistND (sw+w) (sww+(w*w)) (fillV w v swx) (fillCov w v swxy) (n+1)
+      DistND
+        (sw+w)
+        (sww+(w*w))
+        (V.zipWith (+) (V.map (*w) v) swx)
+        (V.zipWith (V.zipWith (+)) (V.map (V.map (*w)) $ outerV v v) swxy)
+        (n+1)
