@@ -25,7 +25,8 @@ library
                      , Data.Histogram.Bin.Fixed
                      , Data.Histogram.Fixed
 
-  other-modules:
+  other-modules:       Data.Histogram.Internal.T
+                     , Data.Histogram.Internal.TriMat
   other-extensions:
   build-depends:       base == 4.9.*
                      , lens == 4.14.*
@@ -41,6 +42,7 @@ library
                      , linear == 1.20.*
                      , foldl == 1.2.*
                      , cereal-vector == 0.2.*
+                     , fixed-vector == 0.8.*
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -Wall -O1

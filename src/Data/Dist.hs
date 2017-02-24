@@ -1,185 +1,104 @@
+{-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
-module Data.Dist ( Dist0D, sumW, sumWW, nentries, negateD0
-                 , Dist1D, sumWX, sumWXX, distW, negateD1
-                 , Dist2D, distX, distY, sumWXY, negateD2
-                 ) where
+module Data.Dist
+  ( DistND(..), sumW, sumWW, sumWX, sumWXY, nentries
+  , Dist0D, Dist1D, Dist2D
+  ) where
 
 import           Control.Lens
-import           Data.Semigroup
 import           Data.Serialize
-import           Data.Vector.Unboxed
+import qualified Data.Vector.Unboxed            as U
 import           Data.Vector.Unboxed.Deriving
 import           GHC.Generics
+import           GHC.TypeLits
+import           Linear.V
+import           Linear.Vector
 
 import           Data.Fillable
+import           Data.Histogram.Internal.TriMat
 import           Data.Weighted
 
-data Dist0D a = Dist0D { _sumW     :: !a
-                       , _sumWW    :: !a
-                       , _nentries :: !Int
-                       } deriving (Generic, Show)
 
-makeLenses ''Dist0D
+fillV :: (KnownNat n, Num a) => a -> V n a -> V n a -> V n a
+fillV w v v' = (w *^ v) ^+^ v'
 
 
--- helper function
-tuple3 :: a -> b -> c -> (a, b, c)
-tuple3 x y z = (x, y, z)
+data DistND n a =
+  DistND
+    { _sumW     :: !a
+    , _sumWW    :: !a
+    , _sumWX    :: !(V n a)
+    , _sumWXY   :: !(TriMat n a)
+    , _nentries :: !Int
+    } deriving Generic
 
-instance Wrapped (Dist0D a) where
-    type Unwrapped (Dist0D a) = (a, a, Int)
-    _Wrapped' = iso
-        (tuple3 <$> _sumW <*> _sumWW <*> _nentries)
-        (Dist0D <$> view _1 <*> view _2 <*> view _3)
+instance (KnownNat n, KnownNat (Tri n), Serialize a)
+  => Serialize (DistND n a) where
 
+type Dist0D a = DistND 0 a
+type Dist1D a = DistND 1 a
+type Dist2D a = DistND 2 a
 
-instance Num a => Semigroup (Dist0D a) where
-    Dist0D w ww n <> Dist0D w' ww' n' =
-        Dist0D (w+w') (ww+ww') (n+n')
+makeLenses ''DistND
 
-instance Num a => Monoid (Dist0D a) where
-    mempty = Dist0D 0 0 0
-    mappend = (<>)
+instance
+  ( KnownNat n, Monoid a, Monoid (TriMat n a) )
+  => Monoid (DistND n a) where
 
-negateD0 :: Num a => Dist0D a -> Dist0D a
-negateD0 d = d & sumW *~ (-1)
+  DistND sw sww swx swxy n `mappend` DistND sw' sww' swx' swxy' n' =
+    DistND
+      (sw `mappend` sw')
+      (sww `mappend` sww')
+      (mappend <$> swx <*> swx')
+      (swxy `mappend` swxy')
+      (n+n')
 
-
-
-instance Fractional a => Weighted (Dist0D a) where
-    type Weight (Dist0D a) = a
-    scaling w d = d
-        & sumW *~ w
-        & sumWW *~ (w*w)
-
-    integral = lens
-        (view sumW)
-        (\(Dist0D sw sww n) w -> Dist0D w (sww*(w/sw)^(2::Int)) n)
+  mempty = DistND mempty mempty (pure mempty) mempty 0
 
 
-instance Fractional a => Fillable (Dist0D a) where
-    type FillVec (Dist0D a) = ()
-    filling () w d = d
-        & sumW +~ w
-        & sumWW +~ (w*w)
-        & nentries +~ 1
+derivingUnbox "DistND"
+  [t| forall a n. (KnownNat n, U.Unbox a, U.Unbox (TriMat n a)) => DistND n a -> (a, a, V n a, TriMat n a, Int) |]
+  [| \(DistND sw sww swx swxy n) -> (sw, sww, swx, swxy, n) |]
+  [| \(sw, sww, swx, swxy, n) -> DistND sw sww swx swxy n |]
 
 
-data Dist1D a = Dist1D { _distW  :: !(Dist0D a)
-                       , _sumWX  :: !a
-                       , _sumWXX :: !a
-                       } deriving (Generic, Show)
+instance (Functor (TriMat n), Fractional a) => Weighted (DistND n a) where
+  type Weight (DistND n a) = a
+  scaling w (DistND sw sww swx swxy n) =
+    DistND
+      (sw*w)
+      (sww*w*w)
+      (w *^ swx)
+      ((*w) <$> swxy)
+      n
 
-makeLenses ''Dist1D
-
-instance Wrapped (Dist1D a) where
-    type Unwrapped (Dist1D a) = (Dist0D a, a, a)
-    _Wrapped' = iso
-        (tuple3 <$> _distW <*> _sumWX <*> _sumWXX)
-        (Dist1D <$> view _1 <*> view _2 <*> view _3)
-
-instance Num a => Semigroup (Dist1D a) where
-    Dist1D dw swx swxx <> Dist1D dw' swx' swxx' =
-        Dist1D (dw<>dw') (swx+swx') (swxx+swxx')
-
-instance Num a => Monoid (Dist1D a) where
-    mempty = Dist1D mempty 0 0
-    mappend = (<>)
+  integral =
+    lens
+    (view sumW)
+    (\d w -> let wr = w / view sumW d in scaling wr d)
 
 
-negateD1 :: Num a => Dist1D a -> Dist1D a
-negateD1 d =
-    d & distW %~ negateD0
-      & sumWX *~ (-1)
+-- TODO
+-- this is kind of inelegant
+-- it loops explicitly over indices...
+fillCov
+  :: (KnownNat (Tri n), KnownNat n, Num a)
+  => a -> V n a -> TriMat n a -> TriMat n a
+fillCov w v = imap $ \(i, j) x -> x + w*(v ^?! ix i)*(v ^?! ix j)
 
-
-instance Fractional a => Weighted (Dist1D a) where
-    type Weight (Dist1D a) = a
-    scaling w d = d
-        & distW %~ scaling w
-        & sumWX *~ w
-        & sumWXX *~ w
-
-    integral = lens
-        (view $ distW . integral)
-        (\d w -> let w' = d ^. integral in scaling (w/w') d)
-
-
-instance Fractional a => Fillable (Dist1D a) where
-    type FillVec (Dist1D a) = a
-    filling x w d = d
-        & distW %~ filling () w
-        & sumWX +~ (w*x)
-        & sumWXX +~ (w*x*x)
-
-
-data Dist2D a = Dist2D { _distX  :: !(Dist1D a)
-                       , _distY  :: !(Dist1D a)
-                       , _sumWXY :: !a
-                       } deriving (Generic, Show)
-
-
-makeLenses ''Dist2D
-
-instance Wrapped (Dist2D a) where
-    type Unwrapped (Dist2D a) = (Dist1D a, Dist1D a, a)
-    _Wrapped' = iso (tuple3 <$> _distX <*> _distY <*> _sumWXY) (Dist2D <$> view _1 <*> view _2 <*> view _3)
-
-instance Num a => Semigroup (Dist2D a) where
-    Dist2D dx dy swxy <> Dist2D dx' dy' swxy' = Dist2D (dx<>dx') (dy<>dy') (swxy+swxy')
-
-instance Num a => Monoid (Dist2D a) where
-    mempty = Dist2D mempty mempty 0
-    mappend = (<>)
-
-
-negateD2 :: Num a => Dist2D a -> Dist2D a
-negateD2 d =
-    d & distX %~ negateD1
-      & distY %~ negateD1
-      & sumWXY *~ (-1)
-
-
-instance Fractional a => Weighted (Dist2D a) where
-    type Weight (Dist2D a) = a
-    scaling w d = d
-        & distX %~ scaling w
-        & distY %~ scaling w
-        & sumWXY *~ w
-
-    integral = lens (view $ distX . integral) (\d w -> let w' = d ^. integral in scaling (w/w') d)
-
-
-instance Fractional a => Fillable (Dist2D a) where
-    type FillVec (Dist2D a) = (a, a)
-    filling (x, y) w d = d
-        & distX %~ filling x w
-        & distY %~ filling y w
-        & sumWXY +~ (w*x*y)
-
-
-instance Serialize a => Serialize (Dist0D a) where
-instance Serialize a => Serialize (Dist1D a) where
-instance Serialize a => Serialize (Dist2D a) where
-
-derivingUnbox "Dist0D"
-    [t| forall a. (Unbox a) => Dist0D a -> (a, a, Int) |]
-    [| view _Wrapped' |]
-    [| view _Unwrapped' |]
-
-derivingUnbox "Dist1D"
-    [t| forall a. (Unbox a) => Dist1D a -> (Dist0D a, a, a) |]
-    [| view _Wrapped' |]
-    [| view _Unwrapped' |]
-
-derivingUnbox "Dist2D"
-    [t| forall a. (Unbox a) => Dist2D a -> (Dist1D a, Dist1D a, a) |]
-    [| view _Wrapped' |]
-    [| view _Unwrapped' |]
+instance (KnownNat n, KnownNat (Tri n), Functor (TriMat n), Fractional a)
+  => Fillable (DistND n a) where
+    type FillVec (DistND n a) = V n a
+    filling v w (DistND sw sww swx swxy n) =
+      DistND (sw+w) (sww+(w*w)) (fillV w v swx) (fillCov w v swxy) (n+1)
