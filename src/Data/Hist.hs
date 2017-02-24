@@ -187,10 +187,10 @@ printDist2D d =
   T.intercalate "\t" . map T.pack
     $ [ views sumW show d
       , views sumWW show d
-      , views (sumWX . _1) show d
-      , views (sumWXY . _1 . _1) show d
-      , views (sumWX . _2) show d
-      , views (sumWXY . _2 . _2) show d
+      , views (sumWX._1) show d
+      , views (sumWXY._1._1) show d
+      , views (sumWX._2) show d
+      , views (sumWXY._2._2) show d
       , views nentries show d
       ]
 

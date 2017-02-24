@@ -96,8 +96,8 @@ instance (Vector v a, Vector v (v a), Fractional a) => Weighted (DistND v a) whe
   type Weight (DistND v a) = a
   scaling w (DistND sw sww swx swxy n) =
     DistND
-      (sw*w)
-      (sww*w*w)
+      (sw * w)
+      (sww * w * w)
       (V.map (*w) swx)
       (V.map (V.map (*w)) swxy)
       n
@@ -115,8 +115,8 @@ instance (Vector v a, Vector v (v a), Fractional a) => Fillable (DistND v a) whe
     type FillVec (DistND v a) = v a
     filling v w (DistND sw sww swx swxy n) =
       DistND
-        (sw+w)
-        (sww+(w*w))
+        (sw + w)
+        (sww + w * w)
         (V.zipWith (+) (V.map (*w) v) swx)
-        (V.zipWith (V.zipWith (+)) (V.map (V.map (*w)) $ outerV v v) swxy)
-        (n+1)
+        (V.zipWith (V.zipWith (+)) (outerV v $ V.map (*w) v) swxy)
+        (n + 1)
