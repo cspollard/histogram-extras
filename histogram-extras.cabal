@@ -25,7 +25,7 @@ library
                      , Data.Histogram.Bin.Fixed
                      , Data.Histogram.Fixed
 
-  -- other-modules:
+  other-modules:     Data.Histogram.Instances
   -- other-extensions:
   build-depends:       base == 4.9.*
                      , lens == 4.14.*
