@@ -17,36 +17,39 @@ module Data.Hist
     , module X
     ) where
 
-import qualified Control.Foldl            as F
+import qualified Control.Foldl               as F
 import           Control.Lens
-import           Data.Histogram.Cereal    ()
-import           Data.Histogram.Generic   (Histogram)
-import qualified Data.Histogram.Generic   as G
+import           Data.Histogram.Cereal       ()
+import           Data.Histogram.Generic      (Histogram)
+import qualified Data.Histogram.Generic      as G
 import           Data.Semigroup
-import           Data.Text                (Text)
-import qualified Data.Text                as T
-import qualified Data.Vector              as V
-import qualified Data.Vector.Generic      as VG
-import qualified Data.Vector.Unboxed      as VU
+import           Data.Text                   (Text)
+import qualified Data.Text                   as T
+import qualified Data.Vector                 as V
+import qualified Data.Vector.Generic         as VG
+import qualified Data.Vector.Generic.Mutable as VGM
+import qualified Data.Vector.Unboxed         as VU
 
-import           Data.Dist                as X
-import           Data.Fillable            as X
-import           Data.Histogram.Bin       as X
-import           Data.Histogram.Bin.Fixed as X
-import           Data.Weighted            as X
+import           Data.Dist                   as X
+import           Data.Fillable               as X
+import           Data.Histogram.Bin          as X
+import           Data.Histogram.Bin.Fixed    as X
+import           Data.Weighted               as X
 
 
 histData :: (Bin b, VG.Vector v' a)
           => Lens (Histogram v b a) (Histogram v' b a) (v a) (v' a)
 histData f h = G.histogramUO (G.bins h) (G.outOfRange h) <$> f (G.histData h)
 
-
+-- make sure we are strict in overflows.
 seqMT :: Maybe (t, t1) -> Maybe (t, t1)
 seqMT (Just (x, y)) = x `seq` y `seq` Just (x, y)
 seqMT Nothing       = Nothing
 
+
 histogramUO :: (Bin bin, VG.Vector v a) => bin -> Maybe (a, a) -> v a -> Histogram v bin a
 histogramUO b = G.histogramUO b . seqMT
+
 
 histVals
   :: (VG.Vector v a, Traversable v, Bin b)
@@ -57,10 +60,10 @@ histVals f h = histogramUO b <$> uo <*> v
       v = traverse f $ G.histData h
       uo = (traverse.both) f $ G.outOfRange h
 
+
 outOfRange :: (VG.Vector v a, Bin b) => Lens' (Histogram v b a) (Maybe (a, a))
 outOfRange f h =
   let uo = f $ G.outOfRange h
-      -- make sure we are strict in overflows.
       g uo' = histogramUO (G.bins h) uo' (G.histData h)
   in g <$> uo
 
@@ -70,6 +73,7 @@ bins f h =
   let b = f $ G.bins h
       g b' = histogramUO b' (G.outOfRange h) (G.histData h)
   in g <$> b
+
 
 total :: (VG.Vector v a, Traversable v, Bin b, Monoid a) => Histogram v b a -> a
 total = foldOf histVals
@@ -120,14 +124,21 @@ atVal x f h =
       i = toIndex b x
       k | i < 0 = (outOfRange._Just._1) f h
         | i >= nb = (outOfRange._Just._2) f h
-        | otherwise = (histData . atIdx i) f h
+        | otherwise = (histData . atIdx' i) f h
   in k
 
-atIdx :: (VG.Vector v t, Applicative f) => Int -> (t -> f t) -> v t -> f (v t)
+atIdx :: VG.Vector v t => Int -> Traversal' (v t) t
 atIdx i f v =
   case v VG.!? i of
-    Just x  -> (\y -> v VG.// [(i, y)]) <$> f x
+    Just x  ->
+      f x <&> \y -> VG.modify (\v' -> VGM.write v' i y) v
     Nothing -> pure v
+
+-- atIdx with the only bounds checking taking place in VGM.write
+atIdx' :: VG.Vector v t => Int -> Traversal' (v t) t
+atIdx' i f v =
+    let g y = VG.modify (\v' -> VGM.write v' i y)
+    in f (v VG.! i) <&> flip g v
 
 type Hist1DFill b a = F.Fold a (Hist1D b)
 type Hist1D b = Histogram V.Vector b (Dist1D Double)
