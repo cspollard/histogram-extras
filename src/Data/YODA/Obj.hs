@@ -78,4 +78,4 @@ printYodaObj pa (Annotated as (P1DD p)) =
       ]
 
 prefixYF :: Text -> YodaFolder -> YodaFolder
-prefixYF p = M.mapKeysMonotonic (<> p)
+prefixYF p = M.mapKeysMonotonic (p <>)
