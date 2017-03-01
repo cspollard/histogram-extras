@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans  #-}
+
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -5,8 +7,6 @@
 module Data.Histogram.Fixed
   ( module X
   ) where
-
-
 
 import           Data.Histogram.Bin.Fixed as X
 import           Data.Histogram.Generic

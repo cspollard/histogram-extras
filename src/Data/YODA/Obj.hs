@@ -12,7 +12,7 @@ module Data.YODA.Obj
   , YodaObj
   , YodaFolder
   , printYodaObj
-  , mergeYO, mergeYF
+  , mergeYO, mergeYF, prefixYF
   , module X
   ) where
 
@@ -76,3 +76,6 @@ printYodaObj pa (Annotated as (P1DD p)) =
       [ printHistogram printDist2D p
       , "# END YODA_PROFILE1D", ""
       ]
+
+prefixYF :: Text -> YodaFolder -> YodaFolder
+prefixYF p = M.mapKeysMonotonic (<> p)
