@@ -32,7 +32,6 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Vector as V
 import           Linear.V
 import           Linear.Epsilon
-import Data.List (intersperse)
 import Control.Lens
 import Data.Proxy
 import GHC.TypeLits
@@ -44,14 +43,6 @@ data FixedBin :: (n -> a -> b -> * -> *) where
   deriving (Generic, Show)
 
 instance Serialize c => Serialize (FixedBin n a b c) where
-
-instance (KnownNat n, Show c) => Show (FixedBin n min max c) where
-  show (FixedBin mn _ mx) =
-    mconcat . intersperse " " $ ["FixedBin", n', mn', mx']
-    where
-      n' = show (natVal (Proxy :: Proxy n))
-      mn' = show mn
-      mx' = show mx
 
 fixedBin
   :: forall n min max a. (Fractional a, KnownNat n, KnownNat min, KnownNat max)
