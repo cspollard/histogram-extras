@@ -12,8 +12,10 @@ module Data.Hist
     , total, histVals, atVal, atIdx
     , histFill, histFill'
     , Hist1D, Hist1DFill, hist1DFill
+    , Hist2D, Hist2DFill, hist2DFill
     , Prof1D, Prof1DFill, prof1DFill
-    , hadd, hadd', printHistogram, printDist1D, printDist2D
+    , hadd, hadd'
+    , printHistogram, printDist1D, printDist2D, printBin1D, printBin2D
     , module X
     ) where
 
@@ -143,6 +145,9 @@ atIdx' i f v =
 type Hist1DFill b a = F.Fold a (Hist1D b)
 type Hist1D b = Histogram V.Vector b (Dist1D Double)
 
+type Hist2DFill b b' a = F.Fold a (Hist2D b b')
+type Hist2D b b' = Histogram V.Vector (Bin2D b b') (Dist2D Double)
+
 type Prof1DFill b a = F.Fold a (Prof1D b)
 type Prof1D b = Histogram V.Vector b (Dist2D Double)
 
@@ -177,6 +182,11 @@ histFill' h f comb = F.Fold g h' (over histData VG.convert)
 hist1DFill :: (Bin b, BinValue b ~ Double) => Hist1D b -> Hist1DFill b (Double, Double)
 hist1DFill h = histFill' h (\(x, w) -> ((Only x, w), x)) (flip $ uncurry filling)
 
+hist2DFill
+  :: (Bin b, Bin b', BinValue b ~ Double, BinValue b' ~ Double)
+  => Hist2D b b' -> Hist2DFill b b' ((Double, Double), Double)
+hist2DFill h = histFill' h (\((x, y), w) -> ((Pair x y, w), (x, y))) (flip $ uncurry filling)
+
 prof1DFill :: (Bin b, BinValue b ~ Double) => Prof1D b -> Prof1DFill b ((Double, Double), Double)
 prof1DFill h = histFill' h (\((x, y), w) -> ((Pair x y, w), x)) (flip $ uncurry filling)
 
@@ -205,11 +215,23 @@ printDist2D d =
       , views nentries show d
       ]
 
+printBin1D :: Show a => (a, a) -> Text
+printBin1D (x, y) = showT x <> "\t" <> showT y
+
+printBin2D :: Show a => ((a, a), (a, a)) -> Text
+printBin2D ((xl, yl), (xh, yh)) =
+  T.intercalate "\t" . fmap showT
+    $ [xl, xh, yl, yh]
+
+showT :: Show a => a -> Text
+showT = T.pack . show
+
+
 printHistogram
   :: ( IntervalBin b, VG.Vector v Text, VG.Vector v (BinValue b, BinValue b)
      , VG.Vector v t, Monoid t, Traversable v, Show (BinValue b) )
-  => (t -> Text) -> Histogram v b t -> Text
-printHistogram showContents h =
+  => (t -> Text) -> ((BinValue b, BinValue b) -> Text) -> Histogram v b t -> Text
+printHistogram showContents showInterval h =
   T.unlines
     $ "Total\tTotal\t" <> showContents (total h)
       : maybe ls (\x -> uo x ++ ls) (view outOfRange h)
@@ -222,12 +244,7 @@ printHistogram showContents h =
 
     ls = VG.toList (VG.zipWith f bs (view histData h))
 
-    f (xmin, xmax) d =
-      T.intercalate "\t"
-        [ T.pack $ show xmin
-        , T.pack $ show xmax
-        , showContents d
-        ]
+    f bi d = showInterval bi <> "\t" <> showContents d
 
     bs = views bins binsList h
 
@@ -257,3 +274,11 @@ instance
 
     type FillVec (Histogram v b a) = (BinValue b, FillVec a)
     filling (x, val) w = over (atVal x) (filling val w)
+
+
+instance (IntervalBin x, IntervalBin y) => IntervalBin (Bin2D x y) where
+  binInterval b@(Bin2D bx by) j =
+    let (jx, jy) = toIndex2D b j
+        (xmn, xmx) = binInterval bx jx
+        (ymn, ymx) = binInterval by jy
+    in ((xmn, ymn), (xmx, ymx))

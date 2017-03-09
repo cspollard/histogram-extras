@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeFamilies              #-}
 
 module Data.YODA.Obj
-  ( Obj(..), _H1DD, _P1DD
+  ( Obj(..), _H1DD, _P1DD, _H2DD
   , YodaObj
   , YodaFolder
   , printYodaObj
@@ -31,6 +31,7 @@ import           Data.Hist       as X
 data Obj =
   H1DD !(Hist1D (ArbBin Double))
   | P1DD !(Prof1D (ArbBin Double))
+  | H2DD !(Hist2D (ArbBin Double) (ArbBin Double))
   deriving Generic
 
 makePrisms ''Obj
@@ -44,6 +45,8 @@ type YodaFolder = M.Map Text YodaObj
 mergeYO :: YodaObj -> YodaObj -> Maybe YodaObj
 Annotated a (H1DD h) `mergeYO` Annotated _ (H1DD h') =
   Annotated a . H1DD <$> hadd' h h'
+Annotated a (H2DD h) `mergeYO` Annotated _ (H2DD h') =
+  Annotated a . H2DD <$> hadd' h h'
 Annotated a (P1DD p) `mergeYO` Annotated _ (P1DD p') =
   Annotated a . P1DD <$> hadd' p p'
 mergeYO _ _ = Nothing
@@ -61,8 +64,21 @@ printYodaObj pa (Annotated as (H1DD h)) =
     ]
     ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList as)
     ++
-      [ printHistogram printDist1D h
+      [ printHistogram printDist1D printBin1D h
       , "# END YODA_HISTO1D", ""
+      ]
+
+printYodaObj pa (Annotated as (H2DD h)) =
+  T.unlines $
+    [ "# BEGIN YODA_HISTO2D " <> pa
+    , "Type=Histo2D"
+    , "Path=" <> pa
+    ]
+    ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList as)
+    ++
+      [ -- we can't yet handle overflows in YODA
+        printHistogram printDist2D printBin2D . set outOfRange Nothing $ h
+      , "# END YODA_HISTO2D", ""
       ]
 
 printYodaObj pa (Annotated as (P1DD p)) =
@@ -73,7 +89,7 @@ printYodaObj pa (Annotated as (P1DD p)) =
     ]
     ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList as)
     ++
-      [ printHistogram printDist2D p
+      [ printHistogram printDist2D printBin1D p
       , "# END YODA_PROFILE1D", ""
       ]
 
