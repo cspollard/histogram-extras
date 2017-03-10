@@ -42,6 +42,16 @@ type YodaObj = Annotated Obj
 
 type YodaFolder = M.Map Text YodaObj
 
+oneDObj :: YodaObj -> Bool
+oneDObj (Annotated _ (H1DD _)) = True
+oneDObj (Annotated _ (H2DD _)) = False
+oneDObj (Annotated _ (P1DD _)) = True
+
+twoDObj :: YodaObj -> Bool
+twoDObj (Annotated _ (H1DD _)) = False
+twoDObj (Annotated _ (H2DD _)) = True
+twoDObj (Annotated _ (P1DD _)) = False
+
 mergeYO :: YodaObj -> YodaObj -> Maybe YodaObj
 Annotated a (H1DD h) `mergeYO` Annotated _ (H1DD h') =
   Annotated a . H1DD <$> hadd' h h'
