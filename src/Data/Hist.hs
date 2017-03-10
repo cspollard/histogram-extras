@@ -14,7 +14,8 @@ module Data.Hist
     , Hist1D, Hist1DFill, hist1DFill
     , Hist2D, Hist2DFill, hist2DFill
     , Prof1D, Prof1DFill, prof1DFill
-    , hadd, hadd'
+    , hadd, hadd', hdiff, hdiff', hforce, hzip, hzip'
+    , removeSubHist, removeSubHist'
     , printHistogram, printDist1D, printDist2D, printBin1D, printBin2D
     , module X
     ) where
@@ -28,6 +29,7 @@ import           Data.Semigroup
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 import qualified Data.Vector                 as V
+import qualified Data.Vector.Fixed           as VF
 import qualified Data.Vector.Generic         as VG
 import qualified Data.Vector.Generic.Mutable as VGM
 import qualified Data.Vector.Unboxed         as VU
@@ -83,10 +85,13 @@ total = foldOf histVals
 
 -- this evaluates the hadded histogram to WHNF before returning
 -- however it does NOT explicitly evaluate all values in the underlying vector
-hadd
-  :: (VG.Vector v a, Semigroup a, BinEq b)
-  => Histogram v b a -> Histogram v b a -> Maybe (Histogram v b a)
-hadd h h' = do
+hzip
+  :: (VG.Vector v a, VG.Vector v c, VG.Vector v d, BinEq b)
+  => (a -> c -> d)
+  -> Histogram v b a
+  -> Histogram v b c
+  -> Maybe (Histogram v b d)
+hzip f h h' = do
   let uo = view outOfRange h
       uo' = view outOfRange h'
       b = view bins h
@@ -97,24 +102,54 @@ hadd h h' = do
     else
       let v = view histData h
           v' = view histData h'
-          h'' = histogramUO b oor $ VG.zipWith (<>) v v'
+          h'' = histogramUO b oor $ VG.zipWith f v v'
       in Just $! h''
 
   where
-    addMaybe (Just (x, y)) (Just (x', y')) = Just $ Just (x<>x', y<>y')
+    addMaybe (Just (x, y)) (Just (x', y')) = Just $ Just (f x x', f y y')
     addMaybe Nothing Nothing               = Just Nothing
     addMaybe _ _                           = Nothing
 
+
 -- explicitly evaluates all values in the underlying vector
-hadd'
-  :: (VG.Vector v a, Semigroup a, BinEq b)
-  => Histogram v b a -> Histogram v b a -> Maybe (Histogram v b a)
-hadd' h h' =
-  case hadd h h' of
-    Nothing  -> Nothing
-    Just h'' -> Just $! over histData whnfElements h''
+hzip'
+  :: (VG.Vector v a, VG.Vector v c, VG.Vector v d, BinEq b)
+  => (a -> c -> d)
+  -> Histogram v b a
+  -> Histogram v b c
+  -> Maybe (Histogram v b d)
+hzip' f h h' =
+  case hzip f h h' of
+    Nothing -> Nothing
+    Just x  -> Just $! hforce x
+
+hforce :: (VG.Vector v a, Bin b) => Histogram v b a -> Histogram v b a
+hforce = over histData whnfElements
   where
     whnfElements v = VG.foldl' (flip seq) () v `seq` v
+
+hadd, hadd'
+  :: (VG.Vector v a, Semigroup a, BinEq b)
+  => Histogram v b a -> Histogram v b a -> Maybe (Histogram v b a)
+hadd = hzip (<>)
+hadd' = hzip' (<>)
+
+hdiff, hdiff'
+  :: (Num d, BinEq b, VG.Vector v d)
+  => Histogram v b d -> Histogram v b d -> Maybe (Histogram v b d)
+hdiff = hzip (-)
+hdiff' = hzip' (-)
+
+
+removeSubHist, removeSubHist'
+  :: ( VF.Vector v1 (v1 a), VF.Vector v1 a, Num a, BinEq b
+     , VG.Vector v (DistND v1 a) )
+  => Histogram v b (DistND v1 a)
+  -> Histogram v b (DistND v1 a)
+  -> Maybe (Histogram v b (DistND v1 a))
+removeSubHist = hzip removeSubDist
+removeSubHist' = hzip' removeSubDist
+
 
 
 atVal

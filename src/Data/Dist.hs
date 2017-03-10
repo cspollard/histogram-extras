@@ -13,6 +13,7 @@ module Data.Dist
   ( DistND(..), sumW, sumWW, sumWX, sumWXY, nentries
   , Dist0D, Dist1D, Dist2D
   , Pair(..), Only(..), Empty(..)
+  , removeSubDist
   ) where
 
 import           Control.Lens
@@ -64,7 +65,6 @@ instance V.Vector Pair a where
 
 
 instance (Num a, Vector v a, Vector v (v a)) => Semigroup (DistND v a) where
-
   DistND sw sww swx swxy n <> DistND sw' sww' swx' swxy' n' =
     DistND
       (sw + sw')
@@ -74,12 +74,22 @@ instance (Num a, Vector v a, Vector v (v a)) => Semigroup (DistND v a) where
       (n + n')
 
 instance (Num a, Vector v a, Vector v (v a)) => Monoid (DistND v a) where
-
   mappend = (<>)
-
   mempty =
     DistND 0 0 (V.replicate 0) (V.replicate $ V.replicate 0) 0
 
+
+-- a fully correlated difference between dists.
+removeSubDist
+  :: (Num a, Vector v a, Vector v (v a))
+  => DistND v a -> DistND v a -> DistND v a
+removeSubDist (DistND sw sww swx swxy n) (DistND sw' sww' swx' swxy' n') =
+  DistND
+    (sw - sw')
+    (sww - sww')
+    (V.zipWith (-) swx swx')
+    (V.zipWith (V.zipWith (-)) swxy swxy')
+    (n - n')
 
 derivingUnbox "Pair"
   [t| forall a. U.Unbox a => Pair a -> (a, a) |]
