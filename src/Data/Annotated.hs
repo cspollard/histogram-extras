@@ -1,7 +1,7 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric             #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE TemplateHaskell           #-}
 
 module Data.Annotated ( Annotated(..), annotated
                       , annots, noted
@@ -9,20 +9,26 @@ module Data.Annotated ( Annotated(..), annotated
                       ) where
 
 
-import Control.Lens
-import GHC.Generics
-import Data.Map.Strict
-import Data.Text (Text)
-import Data.Serialize.Text ()
-import Data.Serialize
+import           Control.Lens
+import           Data.Map.Strict
+import           Data.Semigroup
+import           Data.Serialize
+import           Data.Serialize.Text ()
+import           Data.Text           (Text)
+import           GHC.Generics
 
 -- NB
 -- this is strict in it's thing.
-data Annotated a = Annotated { _annots :: Map Text Text
-                             , _noted :: !a
-                             } deriving (Generic, Show)
+data Annotated a =
+  Annotated
+    { _annots :: Map Text Text
+    , _noted  :: !a
+    } deriving (Generic, Show)
 
 instance Serialize a => Serialize (Annotated a) where
+
+instance Semigroup a => Semigroup (Annotated a) where
+  Annotated m x <> Annotated m' x' = Annotated (m <> m') (x <> x')
 
 makeLenses ''Annotated
 
