@@ -16,7 +16,7 @@ module Data.YODA.Obj
   , printYodaObj
   , mergeYO, mergeYF, prefixF
   , oneDObj, twoDObj
-  , Folder, singleton, inF, inF2
+  , Folder(..), singleton, inF, inF2
   , module X
   ) where
 
@@ -120,14 +120,13 @@ prefixF :: Text -> Folder a -> Folder a
 prefixF p = inF $ M.mapKeysMonotonic (p <>)
 
 
-newtype Folder a = Folder { unF :: M.Map T.Text a }
+newtype Folder a = Folder { folderToMap :: M.Map T.Text a }
   deriving (Generic, Show, Functor, Foldable, Traversable)
-
 
 instance Serialize a => Serialize (Folder a) where
 
 inF :: (M.Map T.Text a -> M.Map T.Text b) -> Folder a -> Folder b
-inF f = Folder . f . unF
+inF f = Folder . f . folderToMap
 
 inF2 :: (M.Map T.Text t1 -> M.Map T.Text t -> M.Map T.Text a) -> Folder t1 -> Folder t -> Folder a
 inF2 f (Folder m) (Folder m') = Folder $ f m m'
