@@ -11,7 +11,7 @@ module Data.Histogram.Bin.Transform
   , fixedLogBin, fixedLog10Bin
   , BinTransform (..)
   , LogBT, Log10BT
-  , Log10Bin
+  , Log10Bin, transBinD, logBinD
   ) where
 
 import           Control.Lens
@@ -99,6 +99,12 @@ instance
 instance (Dim b) => Dim (TransformedBin b bt) where
   reflectDim _ = reflectDim (Proxy :: Proxy b)
 
+transBinD
+  :: forall t. (BinTransform t, BTDomain t ~ Double, BTRange t ~ Double)
+  => Double -> Int -> Double -> TransformedBin BinD t
+transBinD mn n mx =
+  let f = view . from $ btIso (Proxy :: Proxy t)
+  in transformedBin $ binD (f mn) n (f mx)
 
 fixedLogBin
   :: (KnownNat n, KnownNat min, KnownNat max, Floating a)
