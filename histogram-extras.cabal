@@ -23,6 +23,8 @@ library
                      , Data.Fillable
                      , Data.YODA.Obj
                      , Data.Histogram.Bin.Fixed
+                     , Data.Histogram.Bin.Transform
+                     , Data.Histogram.Bin.Arb
                      , Data.Histogram.Fixed
 
   other-modules:     Data.Histogram.Instances

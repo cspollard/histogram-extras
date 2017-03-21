@@ -21,15 +21,15 @@ module Data.YODA.Obj
   ) where
 
 import           Control.Lens
-import qualified Data.Map.Strict as M
+import           Data.Annotated         as X
+import           Data.Hist              as X
+import           Data.Histogram.Bin.Arb as X
+import qualified Data.Map.Strict        as M
 import           Data.Semigroup
 import           Data.Serialize
-import           Data.Text       (Text)
-import qualified Data.Text       as T
+import           Data.Text              (Text)
+import qualified Data.Text              as T
 import           GHC.Generics
-
-import           Data.Annotated  as X
-import           Data.Hist       as X
 
 
 data Obj =
