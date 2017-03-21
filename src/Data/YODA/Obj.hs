@@ -32,6 +32,8 @@ import qualified Data.Text              as T
 import           GHC.Generics
 
 
+
+    -- f bi d = showInterval bi <> "\t" <> showContents d
 data Obj =
   H1DD !(Hist1D (ArbBin Double))
   | P1DD !(Prof1D (ArbBin Double))
@@ -87,7 +89,8 @@ printYodaObj pa (Annotated as (H1DD h)) =
     ]
     ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList as)
     ++
-      [ printHistogram printDist1D printBin1D h
+      [ T.unlines
+        $ printHistogramUO printDist1D (print1DBinWith printDist1D) h
       , "# END YODA_HISTO1D", ""
       ]
 
@@ -99,8 +102,9 @@ printYodaObj pa (Annotated as (H2DD h)) =
     ]
     ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList as)
     ++
-      [ -- we can't yet handle overflows in YODA
-        printHistogram printDist2D printBin2D . set outOfRange Nothing $ h
+      [ -- we can't yet handle overflows of 2D histos in YODA
+        T.unlines
+        $ printHistogram (print2DBinWith printDist2D) h
       , "# END YODA_HISTO2D", ""
       ]
 
@@ -112,7 +116,8 @@ printYodaObj pa (Annotated as (P1DD p)) =
     ]
     ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList as)
     ++
-      [ printHistogram printDist2D printBin1D p
+      [ T.unlines
+        $ printHistogramUO printDist2D (print1DBinWith printDist2D) p
       , "# END YODA_PROFILE1D", ""
       ]
 

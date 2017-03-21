@@ -16,7 +16,9 @@ module Data.Hist
     , Prof1D, Prof1DFill, prof1DFill
     , hadd, hadd', hdiff, hdiff', hforce, hzip, hzip'
     , removeSubHist, removeSubHist'
-    , printHistogram, printDist1D, printDist2D, printBin1D, printBin2D
+    , printHistogram, printHistogramUO
+    , printDist1D, printDist2D
+    , print1DBinWith, print2DBinWith
     , module X
     ) where
 
@@ -25,6 +27,7 @@ import           Control.Lens
 import           Data.Histogram.Cereal       ()
 import           Data.Histogram.Generic      (Histogram)
 import qualified Data.Histogram.Generic      as G
+import           Data.Maybe                  (fromJust)
 import           Data.Semigroup
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
@@ -201,12 +204,12 @@ hist1DFill :: (Bin b, BinValue b ~ Double) => Hist1D b -> Hist1DFill b (Double, 
 hist1DFill h = histFill h (\(x, w) -> ((Only x, w), x)) (flip $ uncurry filling)
 
 type Hist2DFill b b' a = F.Fold a (Hist2D b b')
-type Hist2D b b' = Histogram V.Vector (Bin2D b b') (Dist2D Double)
+type Hist2D b b' = Histogram V.Vector b (Prof1D b')
 
 hist2DFill
   :: (Bin b, Bin b', BinValue b ~ Double, BinValue b' ~ Double)
   => Hist2D b b' -> Hist2DFill b b' ((Double, Double), Double)
-hist2DFill h = histFill h (\((x, y), w) -> ((Pair x y, w), (x, y))) (flip $ uncurry filling)
+hist2DFill h = histFill h (\((x, y), w) -> (((y, Pair x y), w), x)) (flip $ uncurry filling)
 
 type Prof1DFill b a = F.Fold a (Prof1D b)
 type Prof1D b = Histogram V.Vector b (Dist2D Double)
@@ -229,23 +232,31 @@ printDist1D d =
 
 printDist2D :: Show a => Dist2D a -> Text
 printDist2D d =
-  T.intercalate "\t" . map T.pack
-    $ [ views sumW show d
-      , views sumWW show d
-      , views (sumWX._1) show d
-      , views (sumWXY._1._1) show d
-      , views (sumWX._2) show d
-      , views (sumWXY._2._2) show d
-      , views nentries show d
-      ]
+  T.intercalate "\t"
+    [ views sumW showT d
+    , views sumWW showT d
+    , views (sumWX._1) showT d
+    , views (sumWXY._1._1) showT d
+    , views (sumWX._2) showT d
+    , views (sumWXY._2._2) showT d
+    , views nentries showT d
+    ]
 
-printBin1D :: Show a => (a, a) -> Text
-printBin1D (x, y) = showT x <> "\t" <> showT y
+print1DBinWith :: Show a => (b -> Text) -> (a, a) -> b -> Text
+print1DBinWith showCont (x, y) cont =
+  showT x <> "\t" <> showT y <> "\t" <> showCont cont
 
-printBin2D :: Show a => ((a, a), (a, a)) -> Text
-printBin2D ((xl, yl), (xh, yh)) =
-  T.intercalate "\t" . fmap showT
-    $ [xl, xh, yl, yh]
+print2DBinWith
+  :: ( Show (BinValue b), Show a, Traversable v, VG.Vector v Text
+     , VG.Vector v (BinValue b, BinValue b), VG.Vector v t, IntervalBin b )
+  => (t -> Text)
+  -> (a, a)
+  -> Histogram v b t
+  -> Text
+print2DBinWith showCont (x, y) =
+  T.intercalate "\n"
+  . fmap (mappend (showT x <> "\t" <> showT y <> "\t"))
+  . printHistogram (print1DBinWith showCont)
 
 showT :: Show a => a -> Text
 showT = T.pack . show
@@ -253,12 +264,22 @@ showT = T.pack . show
 
 printHistogram
   :: ( IntervalBin b, VG.Vector v Text, VG.Vector v (BinValue b, BinValue b)
-     , VG.Vector v t, Monoid t, Traversable v, Show (BinValue b) )
-  => (t -> Text) -> ((BinValue b, BinValue b) -> Text) -> Histogram v b t -> Text
-printHistogram showContents showInterval h =
-  T.unlines
-    $ "Total\tTotal\t" <> showContents (total h)
-      : maybe ls (\x -> uo x ++ ls) (view outOfRange h)
+     , VG.Vector v t, Traversable v, Show (BinValue b) )
+  => ((BinValue b, BinValue b) -> t -> Text) -> Histogram v b t -> [Text]
+printHistogram showBin h = VG.toList (VG.zipWith showBin bs (view histData h))
+
+  where
+    bs = views bins binsList h
+
+printHistogramUO
+  :: ( IntervalBin b, VG.Vector v Text, VG.Vector v (BinValue b, BinValue b)
+     , VG.Vector v t, Traversable v, Show (BinValue b) )
+  => (t -> Text)
+  -> ((BinValue b, BinValue b) -> t -> Text)
+  -> Histogram v b t
+  -> [Text]
+printHistogramUO showContents showBin h =
+  maybe t (++ t) (uo <$> view outOfRange h)
 
   where
     uo (u, o) =
@@ -266,11 +287,7 @@ printHistogram showContents showInterval h =
       , "Overflow\tOverflow\t" <> showContents o
       ]
 
-    ls = VG.toList (VG.zipWith f bs (view histData h))
-
-    f bi d = showInterval bi <> "\t" <> showContents d
-
-    bs = views bins binsList h
+    t = printHistogram showBin h
 
 instance
     ( Weighted a, Fractional (Weight a), Bin b, Traversable v, VG.Vector v a
@@ -306,3 +323,7 @@ instance (IntervalBin x, IntervalBin y) => IntervalBin (Bin2D x y) where
         (xmn, xmx) = binInterval bx jx
         (ymn, ymx) = binInterval by jy
     in ((xmn, ymn), (xmx, ymx))
+
+instance (VG.Vector v a, BinEq b, Semigroup a)
+  => Semigroup  (Histogram v b a) where
+  h <> h' = fromJust $ hadd' h h'
