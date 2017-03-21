@@ -10,7 +10,7 @@
 module Data.Hist
     ( Histogram, histData, bins, outOfRange
     , total, histVals, atVal, atIdx
-    , histFill, histFill'
+    , histFill
     , Hist1D, Hist1DFill, hist1DFill
     , Hist2D, Hist2DFill, hist2DFill
     , Prof1D, Prof1DFill, prof1DFill
@@ -32,7 +32,6 @@ import qualified Data.Vector                 as V
 import qualified Data.Vector.Fixed           as VF
 import qualified Data.Vector.Generic         as VG
 import qualified Data.Vector.Generic.Mutable as VGM
-import qualified Data.Vector.Unboxed         as VU
 
 import           Data.Dist                   as X
 import           Data.Fillable               as X
@@ -164,6 +163,10 @@ atVal x f h =
         | otherwise = (histData . atIdx' i) f h
   in k
 
+
+forceIndex :: VG.Vector v t => Int -> v t -> v t
+forceIndex i v = (v VG.! i) `seq` v
+
 atIdx :: VG.Vector v t => Int -> Traversal' (v t) t
 atIdx i f v =
   case v VG.!? i of
@@ -174,17 +177,9 @@ atIdx i f v =
 -- atIdx with the only bounds checking taking place in VGM.write
 atIdx' :: VG.Vector v t => Int -> Traversal' (v t) t
 atIdx' i f v =
-    let g y = VG.modify (\v' -> VGM.write v' i y)
+    let g y = forceIndex i . VG.modify (\v' -> VGM.write v' i y)
     in f (v VG.! i) <&> flip g v
 
-type Hist1DFill b a = F.Fold a (Hist1D b)
-type Hist1D b = Histogram V.Vector b (Dist1D Double)
-
-type Hist2DFill b b' a = F.Fold a (Hist2D b b')
-type Hist2D b b' = Histogram V.Vector (Bin2D b b') (Dist2D Double)
-
-type Prof1DFill b a = F.Fold a (Prof1D b)
-type Prof1D b = Histogram V.Vector b (Dist2D Double)
 
 histFill
   :: (VG.Vector v c, Bin b)
@@ -198,32 +193,26 @@ histFill h f comb = F.Fold g h id
       let (val, x) = f xs
       in over (atVal x) (`comb` val) h''
 
--- strict version of histFill
--- convert everything to Unbox vectors to be sure updating is strict
-histFill'
-  :: forall v a b c d. (VG.Vector v c, VU.Unbox c, Bin b)
-  => Histogram v b c
-  -> (a -> (d, BinValue b))
-  -> (c -> d -> c)
-  -> F.Fold a (Histogram v b c)
-histFill' h f comb = F.Fold g h' (over histData VG.convert)
-  where
-    h' :: Histogram VU.Vector b c
-    h' = over histData VG.convert h
-    g h'' xs =
-      let (val, x) = f xs
-      in over (atVal x) (`comb` val) h''
+
+type Hist1DFill b a = F.Fold a (Hist1D b)
+type Hist1D b = Histogram V.Vector b (Dist1D Double)
 
 hist1DFill :: (Bin b, BinValue b ~ Double) => Hist1D b -> Hist1DFill b (Double, Double)
-hist1DFill h = histFill' h (\(x, w) -> ((Only x, w), x)) (flip $ uncurry filling)
+hist1DFill h = histFill h (\(x, w) -> ((Only x, w), x)) (flip $ uncurry filling)
+
+type Hist2DFill b b' a = F.Fold a (Hist2D b b')
+type Hist2D b b' = Histogram V.Vector (Bin2D b b') (Dist2D Double)
 
 hist2DFill
   :: (Bin b, Bin b', BinValue b ~ Double, BinValue b' ~ Double)
   => Hist2D b b' -> Hist2DFill b b' ((Double, Double), Double)
-hist2DFill h = histFill' h (\((x, y), w) -> ((Pair x y, w), (x, y))) (flip $ uncurry filling)
+hist2DFill h = histFill h (\((x, y), w) -> ((Pair x y, w), (x, y))) (flip $ uncurry filling)
+
+type Prof1DFill b a = F.Fold a (Prof1D b)
+type Prof1D b = Histogram V.Vector b (Dist2D Double)
 
 prof1DFill :: (Bin b, BinValue b ~ Double) => Prof1D b -> Prof1DFill b ((Double, Double), Double)
-prof1DFill h = histFill' h (\((x, y), w) -> ((Pair x y, w), x)) (flip $ uncurry filling)
+prof1DFill h = histFill h (\((x, y), w) -> ((Pair x y, w), x)) (flip $ uncurry filling)
 
 
 
