@@ -14,12 +14,13 @@ module Data.Hist
     , Hist1D, Hist1DFill, hist1DFill
     , Hist2D, Hist2DFill, hist2DFill
     , Prof1D, Prof1DFill, prof1DFill
-    , hadd, hadd', hdiff, hdiff', hforce, hzip, hzip'
+    , hadd, hadd', hdiff, hdiff', hzip, hzip'
     , removeSubHist, removeSubHist'
     , printHistogram, printDist1D, printDist2D, printBin1D, printBin2D
     , module X
     ) where
 
+import           Control.DeepSeq
 import qualified Control.Foldl               as F
 import           Control.Lens
 import           Data.Histogram.Cereal       ()
@@ -102,7 +103,7 @@ hzip f h h' = do
       let v = view histData h
           v' = view histData h'
           h'' = histogramUO b oor $ VG.zipWith f v v'
-      in Just $! h''
+      in Just h''
 
   where
     addMaybe (Just (x, y)) (Just (x', y')) = Just $ Just (f x x', f y y')
@@ -112,7 +113,8 @@ hzip f h h' = do
 
 -- explicitly evaluates all values in the underlying vector
 hzip'
-  :: (VG.Vector v a, VG.Vector v c, VG.Vector v d, BinEq b)
+  :: ( VG.Vector v a, VG.Vector v c, VG.Vector v d, BinEq b
+     , NFData b, NFData d, NFData (v d) )
   => (a -> c -> d)
   -> Histogram v b a
   -> Histogram v b c
@@ -120,33 +122,53 @@ hzip'
 hzip' f h h' =
   case hzip f h h' of
     Nothing -> Nothing
-    Just x  -> Just $! hforce x
+    Just x  -> force $ Just x
 
-hforce :: (VG.Vector v a, Bin b) => Histogram v b a -> Histogram v b a
-hforce = over histData whnfElements
-  where
-    whnfElements v = VG.foldl' (flip seq) () v `seq` v
 
-hadd, hadd'
+hadd
   :: (VG.Vector v a, Semigroup a, BinEq b)
   => Histogram v b a -> Histogram v b a -> Maybe (Histogram v b a)
 hadd = hzip (<>)
+
+hadd'
+  :: ( VG.Vector v a, Semigroup a, BinEq b
+     , NFData b, NFData a, NFData (v a) )
+  => Histogram v b a -> Histogram v b a -> Maybe (Histogram v b a)
 hadd' = hzip' (<>)
 
-hdiff, hdiff'
+hdiff
   :: (Num d, BinEq b, VG.Vector v d)
   => Histogram v b d -> Histogram v b d -> Maybe (Histogram v b d)
 hdiff = hzip (-)
+
+hdiff'
+  :: ( Num d, BinEq b, VG.Vector v d
+     , NFData b, NFData d, NFData (v d) )
+  => Histogram v b d -> Histogram v b d -> Maybe (Histogram v b d)
 hdiff' = hzip' (-)
 
 
-removeSubHist, removeSubHist'
+removeSubHist
   :: ( VF.Vector v1 (v1 a), VF.Vector v1 a, Num a, BinEq b
      , VG.Vector v (DistND v1 a) )
   => Histogram v b (DistND v1 a)
   -> Histogram v b (DistND v1 a)
   -> Maybe (Histogram v b (DistND v1 a))
 removeSubHist = hzip removeSubDist
+
+-- removeSubHist
+--   :: ( VF.Vector v1 (v1 a), VF.Vector v1 a, Num a, BinEq b
+--      , VG.Vector v (DistND v1 a), NFData b, NFData a, NFData (v1 a)
+--   => Histogram v b (DistND v1 a)
+--   -> Histogram v b (DistND v1 a)
+--   -> Maybe (Histogram v b (DistND v1 a))
+removeSubHist'
+  :: ( VF.Vector v1 (v1 a), VF.Vector v1 a, Num a, NFData (v (DistND v1 a))
+     , NFData (v1 (v1 a)), NFData (v1 a), NFData a, NFData b, BinEq b
+     , VG.Vector v (DistND v1 a) )
+  => Histogram v b (DistND v1 a)
+  -> Histogram v b (DistND v1 a)
+  -> Maybe (Histogram v b (DistND v1 a))
 removeSubHist' = hzip' removeSubDist
 
 
