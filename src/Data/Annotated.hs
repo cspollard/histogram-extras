@@ -9,6 +9,7 @@ module Data.Annotated ( Annotated(..), annotated
                       ) where
 
 
+import           Control.DeepSeq
 import           Control.Lens
 import           Data.Map.Strict
 import           Data.Semigroup
@@ -25,6 +26,7 @@ data Annotated a =
     , _noted  :: !a
     } deriving (Generic, Show)
 
+instance NFData a => NFData (Annotated a) where
 instance Serialize a => Serialize (Annotated a) where
 
 instance Semigroup a => Semigroup (Annotated a) where

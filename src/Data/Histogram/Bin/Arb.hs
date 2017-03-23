@@ -12,11 +12,13 @@ import           Data.Serialize
 import qualified Data.Vector           as V
 import           Data.Vector.Serialize ()
 import           GHC.Generics
+import           Control.DeepSeq 
 import           Linear.Epsilon
 
 data ArbBin a = ArbBin Int a (V.Vector a) a
   deriving (Generic, Show)
 
+instance (NFData a) => NFData (ArbBin a) where
 instance Serialize a => Serialize (ArbBin a) where
 
 arbBin :: V.Vector a -> ArbBin a

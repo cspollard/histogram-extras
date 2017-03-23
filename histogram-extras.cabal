@@ -41,6 +41,7 @@ library
                      , histogram-fill == 0.8.*
                      , histogram-fill-cereal == 0.6.*
                      , linear == 1.20.*
+                     , deepseq == 1.4.*
                      , foldl == 1.2.*
                      , cereal-vector == 0.2.*
                      , fixed-vector == 0.9.*

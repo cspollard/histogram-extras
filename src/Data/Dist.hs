@@ -16,6 +16,7 @@ module Data.Dist
   , removeSubDist
   ) where
 
+import           Control.DeepSeq
 import           Control.Lens
 import           Data.Semigroup
 import           Data.Serialize
@@ -40,6 +41,8 @@ data DistND v a =
 
 makeLenses ''DistND
 
+instance (NFData a, NFData (v a), NFData (v (v a))) => NFData (DistND v a) where
+
 instance (Serialize a, Serialize (v a), Serialize (v (v a)))
   => Serialize (DistND v a) where
 
@@ -54,6 +57,7 @@ data Pair a =
     {-# UNPACK #-} !a
     deriving (Generic, Show)
 
+instance NFData a => NFData (Pair a) where
 instance Serialize a => Serialize (Pair a) where
 
 instance Field1 (Pair a) (Pair a) a a where

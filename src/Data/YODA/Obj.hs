@@ -1,25 +1,27 @@
-{-# LANGUAGE DeriveFunctor             #-}
-{-# LANGUAGE DeriveGeneric             #-}
-{-# LANGUAGE DeriveTraversable         #-}
-{-# LANGUAGE FlexibleContexts          #-}
-{-# LANGUAGE MultiParamTypeClasses     #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE OverloadedStrings         #-}
-{-# LANGUAGE ScopedTypeVariables       #-}
-{-# LANGUAGE TemplateHaskell           #-}
-{-# LANGUAGE TypeFamilies              #-}
+{-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DeriveTraversable          #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE NoMonomorphismRestriction  #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 module Data.YODA.Obj
   ( Obj(..), _H1DD, _P1DD, _H2DD
   , YodaObj
   , YodaFolder
   , printYodaObj
-  , mergeYO, mergeYF, prefixF
+  , mergeYO, prefixF
   , oneDObj, twoDObj
   , Folder(..), singleton, inF, inF2
   , module X
   ) where
 
+import           Control.DeepSeq
 import           Control.Lens
 import           Data.Annotated         as X
 import           Data.Hist              as X
@@ -40,6 +42,8 @@ data Obj =
 
 makePrisms ''Obj
 
+instance NFData Obj where
+
 -- TODO
 -- these should perhaps throw errors...
 instance Semigroup Obj where
@@ -52,7 +56,7 @@ instance Serialize Obj where
 
 type YodaObj = Annotated Obj
 
-type YodaFolder = M.Map Text YodaObj
+type YodaFolder = Folder YodaObj
 
 oneDObj :: YodaObj -> Bool
 oneDObj (Annotated _ (H1DD _)) = True
@@ -72,11 +76,6 @@ Annotated a (H2DD h) `mergeYO` Annotated _ (H2DD h') =
 Annotated a (P1DD p) `mergeYO` Annotated _ (P1DD p') =
   Annotated a . P1DD <$> hadd' p p'
 mergeYO _ _ = Nothing
-
-
-mergeYF :: YodaFolder -> YodaFolder -> YodaFolder
-mergeYF yf yf' = M.mapMaybe id $ M.intersectionWith mergeYO yf yf'
-
 
 printYodaObj :: Text -> YodaObj -> Text
 printYodaObj pa (Annotated as (H1DD h)) =
@@ -121,7 +120,7 @@ prefixF p = inF $ M.mapKeysMonotonic (p <>)
 
 
 newtype Folder a = Folder { folderToMap :: M.Map T.Text a }
-  deriving (Generic, Show, Functor, Foldable, Traversable)
+  deriving (Generic, Show, Functor, Foldable, Traversable, NFData)
 
 instance Serialize a => Serialize (Folder a) where
 
