@@ -12,7 +12,7 @@ import           Data.Serialize
 import qualified Data.Vector           as V
 import           Data.Vector.Serialize ()
 import           GHC.Generics
-import           Control.DeepSeq 
+import           Control.DeepSeq
 import           Linear.Epsilon
 
 data ArbBin a = ArbBin Int a (V.Vector a) a
@@ -73,6 +73,6 @@ instance (Ord a, Fractional a, Epsilon a)
 -- partial!
 mergeBinRange :: Int -> Int -> ArbBin a -> ArbBin a
 mergeBinRange k l (ArbBin n mn v mx) =
-  if k >= l || k >= n || l >= n
+  if k > l || l >= n
     then error "attempting to merge invalid range of bins."
-    else ArbBin (n+k-l) mn (V.slice 0 k v V.++ V.slice l (n-l) v) mx
+    else ArbBin (n+k-l) mn (V.slice 0 (k+1) v V.++ V.slice (l+1) (n-l-1) v) mx
