@@ -56,8 +56,8 @@ histogramUO b = G.histogramUO b . seqMT
 
 
 histVals
-  :: (VG.Vector v a, Traversable v, Bin b)
-  => Traversal' (Histogram v b a) a
+  :: (VG.Vector v a, VG.Vector v c, Traversable v, Bin b)
+  => Traversal (Histogram v b a) (Histogram v b c) a c
 histVals f h = histogramUO b <$> uo <*> v
     where
       b = G.bins h
