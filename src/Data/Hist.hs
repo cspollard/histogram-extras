@@ -41,20 +41,28 @@ import           Data.Histogram.Bin.Fixed    as X
 import           Data.Weighted               as X
 
 
-histData :: (Bin b, VG.Vector v' a)
-          => Lens (Histogram v b a) (Histogram v' b a) (v a) (v' a)
-histData f h = G.histogramUO (G.bins h) (G.outOfRange h) <$> f (G.histData h)
+
+-- TODO
+-- the following two methods can be removed after histogram-fill updates to have
+-- strict overflows.
 
 -- make sure we are strict in overflows.
 seqMT :: Maybe (t, t1) -> Maybe (t, t1)
 seqMT (Just (x, y)) = x `seq` y `seq` Just (x, y)
 seqMT Nothing       = Nothing
 
-
-histogramUO :: (Bin bin, VG.Vector v a) => bin -> Maybe (a, a) -> v a -> Histogram v bin a
+histogramUO
+  :: (Bin bin, VG.Vector v a)
+  => bin -> Maybe (a, a) -> v a -> Histogram v bin a
 histogramUO b = G.histogramUO b . seqMT
 
+histData
+  :: (Bin b, VG.Vector v' a)
+  => Lens (Histogram v b a) (Histogram v' b a) (v a) (v' a)
+histData f h = histogramUO (G.bins h) (G.outOfRange h) <$> f (G.histData h)
 
+
+-- traverse over all bins and over/under flows.
 histVals
   :: (VG.Vector v a, VG.Vector v c, Traversable v, Bin b)
   => Traversal (Histogram v b a) (Histogram v b c) a c
@@ -81,6 +89,33 @@ bins f h =
 
 total :: (VG.Vector v a, Traversable v, Bin b, Monoid a) => Histogram v b a -> a
 total = foldOf histVals
+
+atVal
+  :: (VG.Vector v a, Bin b)
+  => BinValue b -> Traversal' (Histogram v b a) a
+atVal x f h =
+  let b = view bins h
+      nb = nBins b
+      i = toIndex b x
+      k | i < 0 = (outOfRange._Just._1) f h
+        | i >= nb = (outOfRange._Just._2) f h
+        | otherwise = (histData.atIdx' i) f h
+  in k
+
+
+forceIndex :: VG.Vector v t => Int -> v t -> v t
+forceIndex i v = (v VG.! i) `seq` v
+
+atIdx :: VG.Vector v t => Int -> Traversal' (v t) t
+atIdx i f v
+  | i < 0 || i >= VG.length v = pure v
+  | otherwise = atIdx' i f v
+
+-- atIdx with the only bounds checking taking place in VGM.write
+atIdx' :: VG.Vector v t => Int -> Traversal' (v t) t
+atIdx' i f v =
+    let g y = forceIndex i . VG.modify (\v' -> VGM.write v' i y)
+    in f (v VG.! i) <&> flip g v
 
 
 -- this evaluates the hadded histogram to WHNF before returning
@@ -156,12 +191,7 @@ removeSubHist
   -> Maybe (Histogram v b (DistND v1 a))
 removeSubHist = hzip removeSubDist
 
--- removeSubHist
---   :: ( VF.Vector v1 (v1 a), VF.Vector v1 a, Num a, BinEq b
---      , VG.Vector v (DistND v1 a), NFData b, NFData a, NFData (v1 a)
---   => Histogram v b (DistND v1 a)
---   -> Histogram v b (DistND v1 a)
---   -> Maybe (Histogram v b (DistND v1 a))
+
 removeSubHist'
   :: ( VF.Vector v1 (v1 a), VF.Vector v1 a, Num a, NFData (v (DistND v1 a))
      , NFData (v1 (v1 a)), NFData (v1 a), NFData a, NFData b, BinEq b
@@ -170,37 +200,6 @@ removeSubHist'
   -> Histogram v b (DistND v1 a)
   -> Maybe (Histogram v b (DistND v1 a))
 removeSubHist' = hzip' removeSubDist
-
-
-
-atVal
-  :: (VG.Vector v a, Bin b)
-  => BinValue b -> Traversal' (Histogram v b a) a
-atVal x f h =
-  let b = view bins h
-      nb = nBins b
-      i = toIndex b x
-      k | i < 0 = (outOfRange._Just._1) f h
-        | i >= nb = (outOfRange._Just._2) f h
-        | otherwise = (histData . atIdx' i) f h
-  in k
-
-
-forceIndex :: VG.Vector v t => Int -> v t -> v t
-forceIndex i v = (v VG.! i) `seq` v
-
-atIdx :: VG.Vector v t => Int -> Traversal' (v t) t
-atIdx i f v =
-  case v VG.!? i of
-    Just x  ->
-      f x <&> \y -> VG.modify (\v' -> VGM.write v' i y) v
-    Nothing -> pure v
-
--- atIdx with the only bounds checking taking place in VGM.write
-atIdx' :: VG.Vector v t => Int -> Traversal' (v t) t
-atIdx' i f v =
-    let g y = forceIndex i . VG.modify (\v' -> VGM.write v' i y)
-    in f (v VG.! i) <&> flip g v
 
 
 histFill
