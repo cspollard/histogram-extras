@@ -24,7 +24,6 @@ import           Data.Vector.Fixed            as V
 import qualified Data.Vector.Unboxed          as U
 import           Data.Vector.Unboxed.Deriving
 import           GHC.Generics                 hiding (S, V1)
-
 import           Data.Fillable
 import           Data.Histogram.Instances     ()
 import           Data.Weighted
