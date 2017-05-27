@@ -18,15 +18,15 @@ module Data.Dist
 
 import           Control.DeepSeq
 import           Control.Lens
+import           Data.Fillable
+import           Data.Histogram.Instances     ()
 import           Data.Semigroup
 import           Data.Serialize
 import           Data.Vector.Fixed            as V
 import qualified Data.Vector.Unboxed          as U
 import           Data.Vector.Unboxed.Deriving
-import           GHC.Generics                 hiding (S, V1)
-import           Data.Fillable
-import           Data.Histogram.Instances     ()
 import           Data.Weighted
+import           GHC.Generics                 hiding (S, V1)
 
 
 data DistND v a =
