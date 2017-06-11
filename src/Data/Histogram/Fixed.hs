@@ -11,7 +11,7 @@ module Data.Histogram.Fixed
 import           Data.Histogram.Bin.Fixed as X
 import           Data.Histogram.Generic
 import           Data.Proxy
-import           Linear.V
+import           Linear.V                 hiding (Size)
 
 instance Sized (V n a) where
   type Size (V n a) = n

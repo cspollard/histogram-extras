@@ -31,11 +31,11 @@ import           GHC.Generics                 hiding (S, V1)
 
 data DistND v a =
   DistND
-    { _sumW     :: {-# UNPACK #-} !a
-    , _sumWW    :: {-# UNPACK #-} !a
-    , _sumWX    :: {-# UNPACK #-} !(v a)
-    , _sumWXY   :: {-# UNPACK #-} !(v (v a))
-    , _nentries :: {-# UNPACK #-} !Int
+    { _sumW     :: !a
+    , _sumWW    :: !a
+    , _sumWX    :: !(v a)
+    , _sumWXY   :: !(v (v a))
+    , _nentries :: !Int
     } deriving Generic
 
 makeLenses ''DistND
@@ -50,11 +50,8 @@ type Dist1D a = DistND Only a
 type Dist2D a = DistND Pair a
 
 -- strict tuple type
-data Pair a =
-  Pair
-    {-# UNPACK #-} !a
-    {-# UNPACK #-} !a
-    deriving (Generic, Show)
+data Pair a = Pair !a !a
+  deriving (Generic, Show)
 
 instance NFData a => NFData (Pair a) where
 instance Serialize a => Serialize (Pair a) where

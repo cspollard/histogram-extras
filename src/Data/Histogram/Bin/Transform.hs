@@ -11,7 +11,7 @@ module Data.Histogram.Bin.Transform
   , fixedLogBin, fixedLog10Bin
   , BinTransform (..)
   , LogBT, Log10BT
-  , Log10Bin, transBinD, logBinD
+  , Log10Bin, transBinD
   ) where
 
 import           Control.Lens
@@ -20,7 +20,7 @@ import           Data.Histogram.Bin.Fixed
 import           Data.Proxy
 import           GHC.Generics             hiding (from)
 import           GHC.TypeLits
-import           Linear.V
+import           Linear.V                 hiding (Size)
 
 class BinTransform bt where
   type BTDomain bt :: *

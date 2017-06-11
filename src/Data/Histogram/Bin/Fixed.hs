@@ -1,17 +1,11 @@
-{-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE PolyKinds           #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE TypeOperators       #-}
 
 module Data.Histogram.Bin.Fixed
   ( module X
@@ -20,14 +14,14 @@ module Data.Histogram.Bin.Fixed
   , IntBin
   ) where
 
-import Data.Vector.Serialize ()
-import Data.Serialize
-import GHC.Generics hiding (from)
-import           Linear.V
-import Data.Proxy
-import GHC.TypeLits
+import           Data.Proxy
+import           Data.Serialize
+import           Data.Vector.Serialize      ()
+import           GHC.Generics               hiding (from)
+import           GHC.TypeLits
+import           Linear.V                   hiding (Size)
 
-import Data.Histogram.Bin.Classes as X
+import           Data.Histogram.Bin.Classes as X
 
 data FixedBin :: (n -> a -> b -> * -> *) where
   FixedBin :: c -> c -> c -> FixedBin n a b c
@@ -43,7 +37,7 @@ fixedBin = FixedBin mn step mx
   where
     mn = fromIntegral . natVal $ (Proxy :: Proxy minT)
     mx = fromIntegral . natVal $ (Proxy :: Proxy maxT)
-    step = (mx-mn) / fromIntegral (natVal (Proxy :: Proxy n))
+    step = (mx - mn) / fromIntegral (natVal (Proxy :: Proxy n))
 
 
 
@@ -57,7 +51,7 @@ instance (KnownNat n, RealFrac a) => Bin (FixedBin n min max a) where
   toIndex fb@(FixedBin mn step mx) x
     | x < mn = negate 1
     | x > mx = nBins fb
-    | otherwise = floor $ (x-mn) / step
+    | otherwise = floor $ (x - mn) / step
 
   fromIndex (FixedBin mn step _) i =
     mn + (fromIntegral i + 0.5) * step
@@ -87,4 +81,4 @@ class Sized s where
 instance Sized (FixedBin n min max a) where
   type Size (FixedBin n min max a) = n
 
-type IntBin (min :: Nat) (max :: Nat) a = FixedBin (max-min) min max a
+type IntBin (min :: Nat) (max :: Nat) a = FixedBin (max - min) min max a
