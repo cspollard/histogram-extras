@@ -115,23 +115,34 @@ printYodaObj pa (Annotated as (P1DD p)) =
       , "# END YODA_PROFILE1D", ""
       ]
 
-prefixF :: Text -> Folder a -> Folder a
-prefixF p = inF $ M.mapKeysMonotonic (p <>)
-
-
-newtype Folder a = Folder { folderToMap :: M.Map T.Text a }
+newtype Folder a = Folder { _toMap :: M.Map T.Text a }
   deriving (Generic, Show, Functor, Foldable, Traversable, NFData)
+
+makeLenses ''Folder
+
+type instance Index (Folder a) = T.Text
+type instance IxValue (Folder a) = a
+
+instance Ixed (Folder a) where
+  ix i = toMap . ix i
+
+instance At (Folder a) where
+  at i = toMap . at i
+
 
 instance Serialize a => Serialize (Folder a) where
 
 inF :: (M.Map T.Text a -> M.Map T.Text b) -> Folder a -> Folder b
-inF f = Folder . f . folderToMap
+inF = over toMap
 
 inF2 :: (M.Map T.Text t1 -> M.Map T.Text t -> M.Map T.Text a) -> Folder t1 -> Folder t -> Folder a
 inF2 f (Folder m) (Folder m') = Folder $ f m m'
 
 singleton :: T.Text -> a -> Folder a
 singleton n = Folder . M.singleton n
+
+prefixF :: Text -> Folder a -> Folder a
+prefixF p = inF $ M.mapKeysMonotonic (p <>)
 
 instance Semigroup a => Monoid (Folder a) where
   mempty = Folder M.empty
