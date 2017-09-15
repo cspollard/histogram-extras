@@ -33,6 +33,8 @@ library
         lens -any,
         these -any,
         hashable -any,
+        free -any,
+        transformers -any,
         keys -any,
         vector -any,
         text -any,

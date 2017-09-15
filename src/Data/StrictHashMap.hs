@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeFamilies       #-}
 
 module Data.StrictHashMap
-  ( StrictHashMap, strictHashMap
+  ( StrictHashMap(..), strictHashMap
   , intersectionWith, mapMaybeWithKey
   ) where
 

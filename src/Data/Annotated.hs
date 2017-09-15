@@ -11,18 +11,16 @@ module Data.Annotated ( Annotated(..), annotated
 
 import           Control.DeepSeq
 import           Control.Lens
-import           Data.Map.Strict
 import           Data.Semigroup
 import           Data.Serialize
 import           Data.Serialize.Text ()
+import           Data.StrictHashMap
 import           Data.Text           (Text)
 import           GHC.Generics
 
--- NB
--- this is strict in it's thing.
 data Annotated a =
   Annotated
-    { _annots :: Map Text Text
+    { _annots :: !(StrictHashMap Text Text)
     , _noted  :: !a
     } deriving (Generic, Show)
 
@@ -35,7 +33,7 @@ instance Semigroup a => Semigroup (Annotated a) where
 makeLenses ''Annotated
 
 annotated :: a -> Annotated a
-annotated = Annotated empty
+annotated = Annotated mempty
 
 title :: Traversal' (Annotated a) Text
 title = annots . ix "Title"

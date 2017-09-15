@@ -15,22 +15,26 @@ module Data.YODA.Obj
   , YodaObj
   , YodaFolder
   , printYodaObj
-  , mergeYO, prefixF
+  , mergeYO
   , oneDObj, twoDObj
-  , Folder(..), singleton, inF, inF2
   , module X
   ) where
 
 import           Control.DeepSeq
 import           Control.Lens
-import           Data.Annotated         as X
-import           Data.Hist              as X
-import           Data.Histogram.Bin.Arb as X
-import qualified Data.Map.Strict        as M
+import           Control.Monad.Free
+import           Control.Monad.Trans.Writer.Strict
+import           Data.Align
+import           Data.Annotated                    as X
+import           Data.Hist                         as X
+import           Data.Histogram.Bin.Arb            as X
 import           Data.Semigroup
 import           Data.Serialize
-import           Data.Text              (Text)
-import qualified Data.Text              as T
+import           Data.StrictHashMap
+import           Data.Text                         (Text)
+import qualified Data.Text                         as T
+import           Data.Tuple                        (swap)
+import           GHC.Exts
 import           GHC.Generics
 
 
@@ -84,7 +88,7 @@ printYodaObj pa (Annotated as (H1DD h)) =
     , "Type=Histo1D"
     , "Path=" <> pa
     ]
-    ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList as)
+    ++ fmap (\(k, v) -> k <> "=" <> v) (toList as)
     ++
       [ printHistogram printDist1D printBin1D h
       , "# END YODA_HISTO1D", ""
@@ -96,7 +100,7 @@ printYodaObj pa (Annotated as (H2DD h)) =
     , "Type=Histo2D"
     , "Path=" <> pa
     ]
-    ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList as)
+    ++ fmap (\(k, v) -> k <> "=" <> v) (toList as)
     ++
       [ -- we can't yet handle overflows in YODA
         printHistogram printDist2D printBin2D . set outOfRange Nothing $ h
@@ -109,41 +113,48 @@ printYodaObj pa (Annotated as (P1DD p)) =
     , "Type=Profile1D"
     , "Path=" <> pa
     ]
-    ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList as)
+    ++ fmap (\(k, v) -> k <> "=" <> v) (toList as)
     ++
       [ printHistogram printDist2D printBin1D p
       , "# END YODA_PROFILE1D", ""
       ]
 
-newtype Folder a = Folder { _toMap :: M.Map T.Text a }
-  deriving (Generic, Show, Functor, Foldable, Traversable, NFData)
+newtype Folder a = Folder (Free (StrictHashMap T.Text) a)
+  deriving (Functor, Applicative, Monad, Traversable, Foldable)
 
-makeLenses ''Folder
-
-type instance Index (Folder a) = T.Text
-type instance IxValue (Folder a) = a
-
-instance Ixed (Folder a) where
-  ix i = toMap . ix i
-
-instance At (Folder a) where
-  at i = toMap . at i
+instance Monoid a => Monoid (Folder a) where
+  mempty = Folder $ Free mempty
+  m `mappend` m' =
+    let (Folder (Free x)) = flatten m
+        (Folder (Free x')) = flatten m'
+    in Folder . Free $ alignWith mergeThese x x'
 
 
-instance Serialize a => Serialize (Folder a) where
 
-inF :: (M.Map T.Text a -> M.Map T.Text b) -> Folder a -> Folder b
-inF = over toMap
 
-inF2 :: (M.Map T.Text t1 -> M.Map T.Text t -> M.Map T.Text a) -> Folder t1 -> Folder t -> Folder a
-inF2 f (Folder m) (Folder m') = Folder $ f m m'
+flatten :: Folder a -> Folder a
+flatten (Folder f) = Folder . Free . fromList . fmap g . runWriterT $ foldFree go f
+  where
+    g (x, t) = (t, Pure x)
+    go :: StrictHashMap T.Text a -> WriterT T.Text [] a
+    go m = WriterT . fmap swap $ toList m
 
-singleton :: T.Text -> a -> Folder a
-singleton n = Folder . M.singleton n
 
-prefixF :: Text -> Folder a -> Folder a
-prefixF p = inF $ M.mapKeysMonotonic (p <>)
-
-instance Semigroup a => Monoid (Folder a) where
-  mempty = Folder M.empty
-  mappend = inF2 (M.unionWith (<>))
+-- instance NFData a => NFData (Folder a) where
+-- instance Serialize a => Serialize (Folder a) where
+--
+-- type instance Index (Folder a) = T.Text
+-- type instance IxValue (Folder a) = a
+--
+-- instance Ixed (Folder a) where
+--   ix i = toMap . ix i
+--
+-- instance At (Folder a) where
+--   at i = toMap . at i
+--
+-- prefixF :: Text -> Folder a -> Folder a
+-- prefixF =
+--
+-- instance Semigroup a => Monoid (Folder a) where
+--   mempty = Folder mempty
+--   mappend = inF2 (M.unionWith (<>))
