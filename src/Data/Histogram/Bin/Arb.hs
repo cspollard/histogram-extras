@@ -75,4 +75,4 @@ mergeBinRange :: Int -> Int -> ArbBin a -> ArbBin a
 mergeBinRange k l (ArbBin n mn v mx) =
   if k > l || l >= n
     then error "attempting to merge invalid range of bins."
-    else ArbBin (n+k-l) mn (V.slice 0 (k+1) v V.++ V.slice (l+1) (n-l-1) v) mx
+    else ArbBin (n+k-l) mn (V.slice 0 (k+1) v V.++ V.slice (l+1) (n-l) v) mx
