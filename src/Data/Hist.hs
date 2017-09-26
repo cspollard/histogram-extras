@@ -10,7 +10,7 @@
 module Data.Hist
     ( Histogram, histData, bins, outOfRange
     , total, histVals, atVal, atIdx
-    , histFill
+    , histFill, histogramUO
     , Hist1D, Hist1DFill, hist1DFill
     , Hist2D, Hist2DFill, hist2DFill
     , Prof1D, Prof1DFill, prof1DFill
