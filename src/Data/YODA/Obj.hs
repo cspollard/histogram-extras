@@ -129,6 +129,8 @@ instance Ixed (Folder a) where
 instance At (Folder a) where
   at i = toMap . at i
 
+instance FunctorWithIndex T.Text Folder where
+  imap f = inF (imap f)
 
 instance Serialize a => Serialize (Folder a) where
 
