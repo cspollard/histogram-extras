@@ -22,7 +22,7 @@ import           Data.Text           (Text)
 import           GHC.Generics
 
 -- NB
--- this is strict in it's thing.
+-- this is strict in its thing.
 data Annotated a =
   Annotated
     { _annots :: Map Text Text
@@ -31,6 +31,10 @@ data Annotated a =
 
 instance NFData a => NFData (Annotated a) where
 instance Serialize a => Serialize (Annotated a) where
+
+instance Applicative Annotated where
+  pure = Annotated empty
+  Annotated mf f <*> Annotated mx x = Annotated (mf <> mx) $ f x
 
 instance Semigroup a => Semigroup (Annotated a) where
   Annotated m x <> Annotated m' x' = Annotated (m <> m') (x <> x')
