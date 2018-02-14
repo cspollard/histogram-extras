@@ -22,12 +22,16 @@ import           Data.Text           (Text)
 import           GHC.Generics
 
 -- NB
--- this is strict in it's thing.
+-- this is strict in its thing.
 data Annotated a =
   Annotated
     { _annots :: Map Text Text
     , _noted  :: !a
     } deriving (Generic, Show, Functor, Foldable, Traversable)
+
+instance Applicative Annotated where
+  pure = Annotated mempty
+  Annotated m f <*> Annotated m' x = Annotated (m <> m') $ f x
 
 instance NFData a => NFData (Annotated a) where
 instance Serialize a => Serialize (Annotated a) where
