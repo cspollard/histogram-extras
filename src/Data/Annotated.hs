@@ -1,4 +1,7 @@
+{-# LANGUAGE DeriveFoldable            #-}
+{-# LANGUAGE DeriveFunctor             #-}
 {-# LANGUAGE DeriveGeneric             #-}
+{-# LANGUAGE DeriveTraversable         #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE TemplateHaskell           #-}
@@ -11,7 +14,7 @@ module Data.Annotated ( Annotated(..), annotated
 
 import           Control.DeepSeq
 import           Control.Lens
-import           Data.Map.Strict
+import           Data.Map
 import           Data.Semigroup
 import           Data.Serialize
 import           Data.Serialize.Text ()
@@ -24,7 +27,7 @@ data Annotated a =
   Annotated
     { _annots :: Map Text Text
     , _noted  :: !a
-    } deriving (Generic, Show)
+    } deriving (Generic, Show, Functor, Foldable, Traversable)
 
 instance NFData a => NFData (Annotated a) where
 instance Serialize a => Serialize (Annotated a) where

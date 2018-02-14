@@ -39,6 +39,7 @@ library
         cereal -any,
         cereal-text -any,
         unordered-containers -any,
+        containers -any,
         vector-th-unbox -any,
         histogram-fill -any,
         histogram-fill-cereal -any,
