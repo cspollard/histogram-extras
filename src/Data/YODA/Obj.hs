@@ -129,6 +129,11 @@ instance Ixed (Folder a) where
 instance At (Folder a) where
   at i = toMap . at i
 
+instance FunctorWithIndex T.Text Folder where
+instance FoldableWithIndex T.Text Folder where
+instance TraversableWithIndex T.Text Folder where
+  itraverse f (Folder m) = Folder <$> M.traverseWithKey f m
+
 
 instance Serialize a => Serialize (Folder a) where
 
