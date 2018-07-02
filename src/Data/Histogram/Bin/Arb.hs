@@ -44,7 +44,9 @@ instance (Ord a, Fractional a) => Bin (ArbBin a) where
 
   toIndex (ArbBin n mn v _) x
     | x < mn = negate 1
-    | otherwise = fromMaybe n $ V.findIndex (< x) v
+    -- find the first bin with a value greater than x
+    -- and return the previous one.
+    | otherwise = maybe n ((-1) + ) $ V.findIndex (> x) v
 
   fromIndex (ArbBin _ _ v _) i
     | i < 0 = neginf
