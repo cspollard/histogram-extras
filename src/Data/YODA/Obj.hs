@@ -31,6 +31,8 @@ import           Data.Semigroup
 import           Data.Serialize
 import           Data.Text              (Text)
 import qualified Data.Text              as T
+import qualified Data.Vector            as V
+import qualified Data.Vector.Generic    as VG
 import           GHC.Generics
 
 
@@ -77,43 +79,51 @@ Annotated a (P1DD p) `mergeYO` Annotated _ (P1DD p') =
   Annotated a . P1DD <$> hadd' p p'
 mergeYO _ _ = Nothing
 
+toVector :: VG.Vector v a => v a -> V.Vector a
+toVector = VG.convert
+
 printYodaObj :: Text -> YodaObj -> Text
 printYodaObj pa (Annotated as (H1DD h)) =
-  T.unlines $
-    [ "# BEGIN YODA_HISTO1D " <> pa
-    , "Type=Histo1D"
-    , "Path=" <> pa
-    ]
-    ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList as)
-    ++
-      [ printHistogram printDist1D printBin1D h
-      , "# END YODA_HISTO1D", ""
+  let h' = over histData toVector h
+  in T.unlines $
+      [ "# BEGIN YODA_HISTO1D " <> pa
+      , "Type=Histo1D"
+      , "Path=" <> pa
       ]
+      ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList as)
+      ++
+        [ printHistogram printDist1D printBin1D h'
+        , "# END YODA_HISTO1D", ""
+        ]
 
 printYodaObj pa (Annotated as (H2DD h)) =
-  T.unlines $
-    [ "# BEGIN YODA_HISTO2D " <> pa
-    , "Type=Histo2D"
-    , "Path=" <> pa
-    ]
-    ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList as)
-    ++
-      [ -- we can't yet handle overflows in YODA
-        printHistogram printDist2D printBin2D . set outOfRange Nothing $ h
-      , "# END YODA_HISTO2D", ""
+  let h' = over histData toVector h
+  in
+    T.unlines $
+      [ "# BEGIN YODA_HISTO2D " <> pa
+      , "Type=Histo2D"
+      , "Path=" <> pa
       ]
+      ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList as)
+      ++
+        [ -- we can't yet handle overflows in YODA
+          printHistogram printDist2D printBin2D . set outOfRange Nothing $ h'
+        , "# END YODA_HISTO2D", ""
+        ]
 
 printYodaObj pa (Annotated as (P1DD p)) =
-  T.unlines $
-    [ "# BEGIN YODA_PROFILE1D " <> pa
-    , "Type=Profile1D"
-    , "Path=" <> pa
-    ]
-    ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList as)
-    ++
-      [ printHistogram printDist2D printBin1D p
-      , "# END YODA_PROFILE1D", ""
+  let p' = over histData toVector p
+  in
+    T.unlines $
+      [ "# BEGIN YODA_PROFILE1D " <> pa
+      , "Type=Profile1D"
+      , "Path=" <> pa
       ]
+      ++ fmap (\(k, v) -> k <> "=" <> v) (M.toList as)
+      ++
+        [ printHistogram printDist2D printBin1D p'
+        , "# END YODA_PROFILE1D", ""
+        ]
 
 newtype Folder a = Folder { _toMap :: M.Map T.Text a }
   deriving (Generic, Show, Functor, Foldable, Traversable, NFData)
