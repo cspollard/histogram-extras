@@ -29,10 +29,10 @@ import qualified Data.Histogram.Generic      as G
 import           Data.Semigroup
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
-import qualified Data.Vector                 as V
 import qualified Data.Vector.Fixed           as VF
 import qualified Data.Vector.Generic         as VG
 import qualified Data.Vector.Generic.Mutable as VGM
+import qualified Data.Vector.Unboxed         as V
 
 import           Data.Dist                   as X
 import           Data.Fillable               as X
