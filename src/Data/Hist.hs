@@ -29,10 +29,11 @@ import qualified Data.Histogram.Generic      as G
 import           Data.Semigroup
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
+import qualified Data.Vector                 as V
 import qualified Data.Vector.Fixed           as VF
 import qualified Data.Vector.Generic         as VG
 import qualified Data.Vector.Generic.Mutable as VGM
-import qualified Data.Vector.Unboxed         as V
+import qualified Data.Vector.Unboxed         as VU
 
 import           Data.Dist                   as X
 import           Data.Fillable               as X
@@ -218,8 +219,17 @@ histFill h f comb = F.Fold g h id
 type Hist1DFill b a = F.Fold a (Hist1D b)
 type Hist1D b = Histogram V.Vector b (Dist1D Double)
 
+toVectorV :: VU.Unbox a => VU.Vector a -> V.Vector a
+toVectorV = VG.convert
+
+toVectorU :: VU.Unbox a => V.Vector a -> VU.Vector a
+toVectorU = VG.convert
+
 hist1DFill :: (Bin b, BinValue b ~ Double) => Hist1D b -> Hist1DFill b (Double, Double)
-hist1DFill h = histFill h (\(x, w) -> ((Only x, w), x)) (flip $ uncurry filling)
+hist1DFill h =
+  let h' = over histData toVectorU h
+      f = histFill h' (\(x, w) -> ((Only x, w), x)) (flip $ uncurry filling)
+  in over histData toVectorV <$> f
 
 type Hist2DFill b b' a = F.Fold a (Hist2D b b')
 type Hist2D b b' = Histogram V.Vector (Bin2D b b') (Dist2D Double)
