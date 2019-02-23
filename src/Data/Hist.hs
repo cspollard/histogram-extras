@@ -27,6 +27,7 @@ import           Control.Lens
 import           Data.Histogram.Cereal       ()
 import           Data.Histogram.Generic      (Histogram)
 import qualified Data.Histogram.Generic      as G
+import           Data.Semigroup
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 import qualified Data.Vector                 as V
