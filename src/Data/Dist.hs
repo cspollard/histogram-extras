@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -20,7 +21,6 @@ import           Control.DeepSeq
 import           Control.Lens
 import           Data.Fillable
 import           Data.Histogram.Instances     ()
-import           Data.Semigroup
 import           Data.Serialize
 import           Data.Vector.Fixed            as V
 import qualified Data.Vector.Unboxed          as U
@@ -62,7 +62,7 @@ instance Field1 (Pair a) (Pair a) a a where
 instance Field2 (Pair a) (Pair a) a a where
   _2 f (Pair x y) = Pair x <$> f y
 
-type instance Dim Pair = S (S Z)
+type instance Dim Pair = 2
 instance V.Vector Pair a where
   construct = Fun Pair
   inspect (Pair x y) (Fun f) = f x y

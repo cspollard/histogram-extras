@@ -15,7 +15,6 @@ module Data.Annotated ( Annotated(..), annotated
 import           Control.DeepSeq
 import           Control.Lens
 import           Data.Map
-import           Data.Semigroup
 import           Data.Serialize
 import           Data.Serialize.Text ()
 import           Data.Text           (Text)

@@ -27,7 +27,6 @@ import           Data.Annotated         as X
 import           Data.Hist              as X
 import           Data.Histogram.Bin.Arb as X
 import qualified Data.Map.Strict        as M
-import           Data.Semigroup
 import           Data.Serialize
 import           Data.Text              (Text)
 import qualified Data.Text              as T
@@ -149,6 +148,8 @@ singleton n = Folder . M.singleton n
 prefixF :: Text -> Folder a -> Folder a
 prefixF p = inF $ M.mapKeysMonotonic (p <>)
 
+instance Semigroup a => Semigroup (Folder a) where
+  (<>) = inF2 (M.unionWith (<>))
+
 instance Semigroup a => Monoid (Folder a) where
   mempty = Folder M.empty
-  mappend = inF2 (M.unionWith (<>))

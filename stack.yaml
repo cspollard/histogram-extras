@@ -3,5 +3,6 @@ extra-package-dbs: []
 packages:
 - '.'
 extra-deps:
-- histogram-fill-cereal-0.6.2.0
-resolver: lts-9.0
+- histogram-fill-0.9.1.0
+- histogram-fill-cereal-0.8.5.0
+resolver: lts-13.8
