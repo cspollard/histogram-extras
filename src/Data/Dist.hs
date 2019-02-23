@@ -1,4 +1,3 @@
-{-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -63,7 +62,7 @@ instance Field1 (Pair a) (Pair a) a a where
 instance Field2 (Pair a) (Pair a) a a where
   _2 f (Pair x y) = Pair x <$> f y
 
-type instance Dim Pair = 2
+type instance Dim Pair = S (S Z)
 instance V.Vector Pair a where
   construct = Fun Pair
   inspect (Pair x y) (Fun f) = f x y
