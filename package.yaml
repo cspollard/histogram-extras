@@ -18,24 +18,18 @@ description:         Please see the README on GitHub at <https://github.com/gith
 
 dependencies:
 - base
-- lens 
-- these 
-- hashable 
-- keys 
-- vector 
-- text 
-- cereal 
-- cereal-text 
-- unordered-containers 
+- bifunctors
+- lens
+- hashable
+- linear
+- vector
+- profunctors
+- text
+- cereal
+- cereal-text
 - containers
-- vector-th-unbox 
-- histogram-fill 
-- histogram-fill-cereal 
-- linear 
-- deepseq 
-- foldl 
-- cereal-vector 
-- fixed-vector 
+- cereal-vector
+- profunctor-hep
 
 library:
   source-dirs: src

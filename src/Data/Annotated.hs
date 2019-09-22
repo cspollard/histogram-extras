@@ -1,54 +1,50 @@
-{-# LANGUAGE DeriveFoldable            #-}
-{-# LANGUAGE DeriveFunctor             #-}
-{-# LANGUAGE DeriveGeneric             #-}
-{-# LANGUAGE DeriveTraversable         #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE OverloadedStrings         #-}
-{-# LANGUAGE TemplateHaskell           #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 
-module Data.Annotated ( Annotated(..), annotated
-                      , annots, noted
-                      , title, xlabel, ylabel
-                      ) where
+module Data.Annotated
+  ( Annotated, annotated
+  , pattern Annotated
+  , title, xlabel, ylabel, zlabel
+  ) where
 
 
-import           Control.DeepSeq
-import           Control.Lens
-import           Data.Map
-import           Data.Semigroup
-import           Data.Serialize
-import           Data.Serialize.Text ()
-import           Data.Text           (Text)
-import           GHC.Generics
+import Control.Lens (at)
+import Data.Map.Strict
+import Data.Both
+import Data.Profunctor.Optic
+import Data.Semigroup (First(..))
+import Data.Text           (Text)
 
--- NB
--- this is strict in its thing.
-data Annotated a =
-  Annotated
-    { _annots :: Map Text Text
-    , _noted  :: !a
-    } deriving (Generic, Show, Functor, Foldable, Traversable)
 
-instance Applicative Annotated where
-  pure = Annotated mempty
-  Annotated m f <*> Annotated m' x = Annotated (m <> m') $ f x
+_First :: Lens' (First a) a
+_First f = dimap getFirst First f
 
-instance NFData a => NFData (Annotated a) where
-instance Serialize a => Serialize (Annotated a) where
+-- TODO
+-- these maps are not really strict.
+type Annotated = Both (Map Text Text)
 
-instance Semigroup a => Semigroup (Annotated a) where
-  Annotated m x <> Annotated m' x' = Annotated (m <> m') (x <> x')
+pattern Annotated :: Map Text Text -> a -> Annotated a
+pattern Annotated x y = Both x y
 
-makeLenses ''Annotated
+
 
 annotated :: a -> Annotated a
-annotated = Annotated empty
+annotated = pure
 
-title :: Traversal' (Annotated a) Text
-title = annots . ix "Title"
 
-xlabel :: Traversal' (Annotated a) Text
-xlabel = annots . ix "XLabel"
+title :: Traversal' (Annotated a) (Maybe Text)
+title = _1 . wander (at "Title")
 
-ylabel :: Traversal' (Annotated a) Text
-ylabel = annots . ix "YLabel"
+
+xlabel :: Traversal' (Annotated a) (Maybe Text)
+xlabel = _1 . wander (at "XLabel")
+
+
+ylabel :: Traversal' (Annotated a) (Maybe Text)
+ylabel = _1 . wander (at "YLabel")
+
+
+zlabel :: Traversal' (Annotated a) (Maybe Text)
+zlabel = _1 . wander (at "ZLabel")

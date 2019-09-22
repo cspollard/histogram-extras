@@ -1,138 +1,66 @@
 {-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE PolyKinds             #-}
-{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE UndecidableInstances         #-}
+{-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE TemplateHaskell       #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE UndecidableInstances  #-}
 
 module Data.Dist
-  ( DistND(..), sumW, sumWW, sumWX, sumWXY, nentries
-  , Dist0D, Dist1D, Dist2D
-  , Pair(..), Only(..), Empty(..)
-  , removeSubDist
+  ( Gauss(..), sumW, sumWW, sumWX, sumWXY, nentries
+  , Gauss0D, Gauss1D, Gauss2D
+  , fillGauss
   ) where
 
-import           Control.DeepSeq
-import           Control.Lens
-import           Data.Fillable
-import           Data.Histogram.Instances     ()
-import           Data.Semigroup
-import           Data.Serialize
-import           Data.Vector.Fixed.Cont
-import           Data.Vector.Fixed            as V
-import qualified Data.Vector.Unboxed          as U
-import           Data.Vector.Unboxed.Deriving
-import           Data.Weighted
-import           GHC.Generics                 hiding (S, V1)
+
+import Control.Lens
+import Data.Proxy
+import Linear.Vector
+import Linear.Matrix
+import Data.Both
+import Data.Serialize
+import GHC.Generics
 
 
-data DistND v a =
-  DistND
-    { _sumW     :: !a
-    , _sumWW    :: !a
-    , _sumWX    :: !(v a)
-    , _sumWXY   :: !(v (v a))
-    , _nentries :: !Int
-    } deriving Generic
+data Gauss v a
+  = Gauss
+  { _sumW     :: !a
+  , _sumWW    :: !a
+  , _sumWX    :: !(v a)
+  , _sumWXY   :: !(v (v a))
+  , _nentries :: !Int
+  } deriving (Generic, Functor)
 
-makeLenses ''DistND
 
-instance (NFData a, NFData (v a), NFData (v (v a))) => NFData (DistND v a) where
+makeLenses ''Gauss
+
 
 instance (Serialize a, Serialize (v a), Serialize (v (v a)))
-  => Serialize (DistND v a) where
-
-type Dist0D a = DistND Empty a
-type Dist1D a = DistND Only a
-type Dist2D a = DistND Pair a
-
--- strict tuple type
-data Pair a = Pair !a !a
-  deriving (Generic, Show)
-
-instance NFData a => NFData (Pair a) where
-instance Serialize a => Serialize (Pair a) where
-
-instance Field1 (Pair a) (Pair a) a a where
-  _1 f (Pair x y) = (`Pair` y) <$> f x
-
-instance Field2 (Pair a) (Pair a) a a where
-  _2 f (Pair x y) = Pair x <$> f y
-
-type instance Dim Pair = 2
-instance V.Vector Pair a where
-  construct = Fun Pair
-  inspect (Pair x y) (Fun f) = f x y
+  => Serialize (Gauss v a) where
 
 
-instance (Num a, Vector v a, Vector v (v a)) => Semigroup (DistND v a) where
-  DistND sw sww swx swxy n <> DistND sw' sww' swx' swxy' n' =
-    DistND
-      (sw + sw')
-      (sww + sww')
-      (V.zipWith (+) swx swx')
-      (V.zipWith (V.zipWith (+)) swxy swxy')
-      (n + n')
-
-instance (Num a, Vector v a, Vector v (v a)) => Monoid (DistND v a) where
-  mappend = (<>)
-  mempty =
-    DistND 0 0 (V.replicate 0) (V.replicate $ V.replicate 0) 0
+type Gauss0D = Gauss Proxy
+type Gauss1D = Gauss Identity
+type Gauss2D = Gauss TF
 
 
--- a fully correlated difference between dists.
-removeSubDist
-  :: (Num a, Vector v a, Vector v (v a))
-  => DistND v a -> DistND v a -> DistND v a
-removeSubDist (DistND sw sww swx swxy n) (DistND sw' sww' swx' swxy' n') =
-  DistND
-    (sw - sw')
-    (sww - sww')
-    (V.zipWith (-) swx swx')
-    (V.zipWith (V.zipWith (-)) swxy swxy')
-    (n - n')
+instance Additive v => Additive (Gauss v) where
+  zero = Gauss 0 0 zero (outer zero zero) 0
 
-derivingUnbox "Pair"
-  [t| forall a. U.Unbox a => Pair a -> (a, a) |]
-  [| \(Pair x y) -> (x, y) |]
-  [| uncurry Pair |]
+  liftI2 f (Gauss sw sww swx swxy n) (Gauss sw' sww' swx' swxy' n') =
+    Gauss (f sw sw') (f sww sww') (liftI2 f swx swx') (liftI2 (liftI2 f) swxy swxy') (n + n')
 
-derivingUnbox "DistND"
-  [t| forall a v. (U.Unbox a, U.Unbox (v a), U.Unbox (v (v a))) => DistND v a -> (a, a, v a, v (v a), Int) |]
-  [| \(DistND sw sww swx swxy n) -> (sw, sww, swx, swxy, n) |]
-  [| \(sw, sww, swx, swxy, n) -> DistND sw sww swx swxy n |]
+  liftU2 = liftI2
+
+  (^+^) = liftU2 (+)
+
+  Gauss sw sww swx swxy n ^-^ Gauss sw' sww' swx' swxy' n' =
+    Gauss (sw - sw') (sww - sww') (swx ^-^ swx') (swxy !-! swxy') (n - n')
 
 
-instance (Vector v a, Vector v (v a), Fractional a) => Weighted (DistND v a) where
-  type Weight (DistND v a) = a
-  scaling w (DistND sw sww swx swxy n) =
-    DistND
-      (sw * w)
-      (sww * w * w)
-      (V.map (*w) swx)
-      (V.map (V.map (*w)) swxy)
-      n
 
-  integral =
-    lens
-    (view sumW)
-    (\d w -> let wr = w / view sumW d in scaling wr d)
-
-
-outerV :: (Num a, Vector v a, Vector v (v a)) => v a -> v a -> v (v a)
-outerV v v' = V.generate (\i -> V.map (* (v V.! i)) v')
-
-instance (Vector v a, Vector v (v a), Fractional a) => Fillable (DistND v a) where
-    type FillVec (DistND v a) = v a
-    filling v w (DistND sw sww swx swxy n) =
-      DistND
-        (sw + w)
-        (sww + w * w)
-        (V.zipWith (+) (V.map (*w) v) swx)
-        (V.zipWith (V.zipWith (+)) (outerV v $ V.map (*w) v) swxy)
-        (n + 1)
+fillGauss :: (Additive v, Num a) => Gauss v a -> (v a, a) -> Gauss v a
+fillGauss (Gauss sw sww swx swxy n) (v, w) =
+  Gauss
+    (sw + w)
+    (sww + w * w)
+    (w *^ v ^+^ swx)
+    (outer v (w *^ v) !+! swxy)
+    (n + 1)
