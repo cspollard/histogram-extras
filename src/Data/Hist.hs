@@ -9,13 +9,11 @@ module Data.Hist where
 
 import Analysis.Fold
 import Control.Lens.Indexed
-import Control.Lens.At
 import Data.Both
 import Data.Functor.Compose
 import Data.Profunctor.Optic
 import Data.Moore
 import Data.List (findIndex)
-import Data.Maybe (fromMaybe)
 import Data.IntMap.Strict as IM
 
 
@@ -74,9 +72,14 @@ values :: Traversal' (Histogram i b v a) (v a)
 values = _Compose . _2
 
 
-ixH :: Int -> Traversal' (Histogram Int b IntMap a) a
-ixH i = values . wander (ix i)
+atH ::  Int -> Traversal' (Histogram Int b IntMap a) (Maybe a)
+atH i = values . wander (flip alterF i)
 
+
+ixH :: Int -> Traversal' (Histogram Int b IntMap a) a
+ixH i = atH i . _Just
+  where
+    _Just = dimap (maybe (Left ()) Right) (either (const Nothing) Just) . right'
 
 
 
