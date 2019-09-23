@@ -3,20 +3,23 @@
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE TemplateHaskell       #-}
 
-module Data.Dist
+module Data.Gauss
   ( Gauss(..), sumW, sumWW, sumWX, sumWXY, nentries
   , Gauss0D, Gauss1D, Gauss2D
   , fillGauss
   ) where
 
 
-import Control.Lens
+import Control.Lens (makeLenses)
 import Data.Proxy
 import Linear.Vector
 import Linear.Matrix
 import Data.Both
 import Data.Serialize
 import GHC.Generics
+import Data.List (intercalate)
+import Data.Profunctor.Optic
+import Data.Functor.Identity
 
 
 data Gauss v a
@@ -64,3 +67,27 @@ fillGauss (Gauss sw sww swx swxy n) (v, w) =
     (w *^ v ^+^ swx)
     (outer v (w *^ v) !+! swxy)
     (n + 1)
+
+
+printGauss1D :: Show a => Gauss1D a -> String
+printGauss1D d =
+  intercalate "\t"
+  [ views (starry sumW) show d
+  , views (starry sumWW) show d
+  , views (starry sumWX) (show.runIdentity) d
+  , views (starry sumWXY) (show.runIdentity.runIdentity) d
+  , views (starry nentries) show d
+  ]
+
+
+printGauss2D :: Show a => Gauss2D a -> String
+printGauss2D d =
+  intercalate "\t"
+  $ [ views (starry sumW) show d
+  , views (starry sumWW) show d
+  , views (starry sumWX . true) show d
+  , views (starry sumWXY . true . true) show d
+  , views (starry sumWX . false) show d
+  , views (starry sumWXY . false . false) show d
+  , views (starry nentries) show d
+  ]
