@@ -20,15 +20,11 @@ dependencies:
 - base
 - bifunctors
 - lens
-- hashable
 - linear
-- vector
 - profunctors
 - text
 - cereal
-- cereal-text
 - containers
-- cereal-vector
 - profunctor-hep
 
 library:

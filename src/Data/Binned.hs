@@ -86,10 +86,9 @@ memptyBinned xs = binned xs mempty
 mooreBinned
   :: Ord x
   => [x] -> Moore' a b -> Moore' (x, a) (Binned x b)
-mooreBinned xs m =
-  layerF
-    (\(x, a) -> (a, ixH (binIdx0 xs x)))
-    $ defaultBinned xs m
+mooreBinned xs m = layerF go $ defaultBinned xs m
+  where
+    go (x, a) = (a, ixH (binIdx0 xs x))
 
 
 mooreHisto1D
