@@ -17,6 +17,8 @@ import Data.Moore
 import Data.List (findIndex, intercalate)
 import Data.IntMap.Strict as IM
 import Control.Lens (FunctorWithIndex(..))
+import Data.Gauss
+import Data.Functor.Identity
 
 
 type Binned i b = Compose (Both (i -> b))
@@ -55,32 +57,46 @@ binning xs = Both go go'
     l2 = ranges l1
 
 
-histMoore1D
+mooreBinned1D
   :: (Fractional x, Ord x)
-  => [x] -> (Moore' a b) -> Moore' (x, a) (Binned Int (x, x) IM.IntMap b)
-histMoore1D xs m =
+  => [x] -> Moore' a b -> Moore' (x, a) (Binned Int (x, x) IM.IntMap b)
+mooreBinned1D xs m =
   let Both idx range = binning xs
   in layerF
       (\(x, a) -> (a, ixH (idx x)))
-      (binned range (IM.fromList $ zip [0 .. length xs] (repeat $ m)))
+      $ binned range (IM.fromList $ zip [0 .. length xs] (repeat $ m))
 
 
--- histMoore2D
-  -- :: (Fractional x, Ord x)
-  -- => [x] -> [y] -> Moore' ((x, y), a) (Binned Int (x, x) IM.IntMap (Binned Int (y, y) IM.IntMap Int))
--- histMoore2D xs =
-  -- let Both idx range = binning xs
-  -- in layerF
-      -- (\(x, a) -> (a, ixH (idx x)))
-      -- (binned range (IM.fromList $ zip [0 .. length xs] (repeat $ counter 0)))
+mooreBinned2D
+  :: (Fractional x, Ord x)
+  => [y]
+  -> [x]
+  -> Moore' a b
+  -> Moore' (y, (x, a)) (Binned Int (y, y) IM.IntMap (Binned Int (x, x) IM.IntMap b))
+mooreBinned2D xs ys =
+  let Both xidx xrange = binning xs
+      Both yidx yrange = binning ys
+  in layerF
+      (\((x, y) a) -> ((y, a), ixH (idx x)))
+      (binned range (IM.fromList $ zip [0 .. length xs] (repeat $ counter 0)))
+
+
+mooreHisto1D
+  :: (Fractional a, Ord a)
+  => [a] -> Moore' (Identity a, a) (Binned Int (a, a) IntMap (Gauss Identity a))
+mooreHisto1D xs =
+  premap (\(Identity v, w) -> (v, (Identity v, w))) $ mooreBinned1D xs mooreGauss
+
 
 
 bins :: FunctorWithIndex i v => Binned i b v a -> v (b, a)
 bins (Compose (Both f v)) = imap (\i -> (f i,)) v
 
 
-_Compose :: Lens' (Compose f g a) (f (g (a)))
+_Binned, _Compose :: Lens' (Compose f g a) (f (g (a)))
 _Compose = dimap getCompose Compose 
+
+_Binned = _Compose
 
 
 values :: Lens' (Binned i b v a) (v a)
@@ -98,8 +114,8 @@ ixH i = atH i . _Just
 
 
 
-printBin1D :: (Eq a, Fractional a, Show a) => (a, a) -> String
-printBin1D (x, y) =
+printInterval1D :: (Eq a, Fractional a, Show a) => (a, a) -> String
+printInterval1D (x, y) =
   case (x == neginf, y == inf) of
     (True, _) -> "Underflow\tUnderflow"
     (_, True) -> "Overflow\tOverflow"
@@ -108,8 +124,8 @@ printBin1D (x, y) =
 
 -- TODO
 -- this does not handle overflows
-printBin2D :: Show a => ((a, a), (a, a)) -> String
-printBin2D ((xl, yl), (xh, yh)) = intercalate "\t" $ show <$> [xl, xh, yl, yh]
+printInterval2D :: Show a => ((a, a), (a, a)) -> String
+printInterval2D ((xl, yl), (xh, yh)) = intercalate "\t" $ show <$> [xl, xh, yl, yh]
 
 
 printBinned
@@ -129,8 +145,8 @@ printBinned showContents showInterval toList' b =
 
 
 test
-  :: (Fractional a, Ord a, Enum b, Num b)
-  => Moore (->) [(a, ())] (Binned Int (a, a) IntMap b)
+  :: (Fractional b, Ord b)
+  => Moore' [(Identity b, b)] (Binned Int (b, b) IntMap (Gauss Identity b))
 test =
-  chomps' [(2, ()), (4, ()), (1, ())] . foldlMoore
-  $ histMoore1D [1, 2, 3] (counter 0)
+  chomps' [(2, 1), (4, -1), (1, 1)] . foldlMoore
+  $ mooreHisto1D [1, 2, 3]

@@ -6,7 +6,8 @@
 module Data.Gauss
   ( Gauss(..), sumW, sumWW, sumWX, sumWXY, nentries
   , Gauss0D, Gauss1D, Gauss2D
-  , fillGauss
+  , fillGauss, mooreGauss
+  , printGauss1D, printGauss2D
   ) where
 
 
@@ -20,6 +21,7 @@ import GHC.Generics
 import Data.List (intercalate)
 import Data.Profunctor.Optic
 import Data.Functor.Identity
+import Data.Moore
 
 
 data Gauss v a
@@ -58,6 +60,12 @@ instance Additive v => Additive (Gauss v) where
     Gauss (sw - sw') (sww - sww') (swx ^-^ swx') (swxy !-! swxy') (n - n')
 
 
+instance (Additive v, Num a) => Semigroup (Gauss v a) where
+  (<>) = (^+^)
+
+instance (Additive v, Num a) => Monoid (Gauss v a) where
+  mempty = zero
+
 
 fillGauss :: (Additive v, Num a) => Gauss v a -> (v a, a) -> Gauss v a
 fillGauss (Gauss sw sww swx swxy n) (v, w) =
@@ -67,6 +75,10 @@ fillGauss (Gauss sw sww swx swxy n) (v, w) =
     (w *^ v ^+^ swx)
     (outer v (w *^ v) !+! swxy)
     (n + 1)
+
+
+mooreGauss :: (Additive v, Num a) => Moore' (v a, a) (Gauss v a)
+mooreGauss = feedback $ liftMoore zero (uncurry fillGauss)
 
 
 printGauss1D :: Show a => Gauss1D a -> String
