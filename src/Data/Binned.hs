@@ -8,6 +8,7 @@
 module Data.Binned where
 
 
+import Data.Maybe (fromMaybe)
 import Analysis.Fold
 import Data.Foldable (fold)
 import Data.Both
@@ -16,20 +17,22 @@ import Data.Profunctor.Optic
 import Data.Moore
 import Data.List (findIndex, intercalate)
 import Data.IntMap.Strict as IM
-import Control.Lens (FunctorWithIndex(..))
 import Data.Gauss
 import Data.Functor.Identity
 
 
-type Binned i b = Compose (Both (i -> b))
+type Binned x = Compose (Both [x]) IM.IntMap
 
 
-pattern Binned :: (i -> b) -> v a -> Binned i b v a
-pattern Binned f v = Compose (Both f v)
+pattern Binned :: [x] -> IM.IntMap a -> Binned x a
+pattern Binned xs im = Compose (Both xs im)
 
 
-binned :: FunctorWithIndex i v => (i -> b) -> v a -> Binned i b v a
-binned f = Compose . Both f
+_Compose :: Lens' (Compose f g a) (f (g (a)))
+_Compose = dimap getCompose Compose 
+
+_Binned :: Lens' (Binned x a) (Both [x] (IM.IntMap a))
+_Binned = _Compose
 
 
 inf, neginf :: Fractional a => a
@@ -37,81 +40,75 @@ inf = 1/0
 neginf = negate inf
 
 
-binning :: (Fractional x, Ord x) => [x] -> Both (x -> Int) (Int -> (x, x))
-binning xs = Both go go'
+-- indexing starts at 0
+binIdx0 :: Ord x => [x] -> (x -> Int)
+binIdx0 [] _ = -1
+binIdx0 xs@(x:_) y =
+  if y < x
+    then (-1)
+    else fromMaybe 0 (findIndex (>= y) xs) - 1
+
+
+binInterval :: [x] -> (Int -> (x, x))
+binInterval xs = (!!) (ranges xs)
   where
-    go x =
-      maybe
-        (error "in Data.Hist: we should always find a bin index.")
-        (\y -> y - 1)
-        $ findIndex (> x) l1
-
-    go' i = l2 !! i
-
     ranges (y:y':ys) = (y, y') : ranges (y':ys)
     ranges [_] = []
     ranges [] = []
 
-    l1 = (neginf : xs) ++ pure inf
 
-    l2 = ranges l1
-
-
-mooreBinned1D
-  :: (Fractional x, Ord x)
-  => [x] -> Moore' a b -> Moore' (x, a) (Binned Int (x, x) IM.IntMap b)
-mooreBinned1D xs m =
-  let Both idx range = binning xs
-  in layerF
-      (\(x, a) -> (a, ixH (idx x)))
-      $ binned range (IM.fromList $ zip [0 .. length xs] (repeat $ m))
-
-
--- mooreBinned2D
---   :: (Fractional x, Ord x)
---   => [y]
---   -> [x]
---   -> Moore' a b
---   -> Moore' (y, (x, a)) (Binned Int (y, y) IM.IntMap (Binned Int (x, x) IM.IntMap b))
--- mooreBinned2D xs ys =
---   let Both xidx xrange = binning xs
---       Both yidx yrange = binning ys
---   in layerF
---       (\((x, y) a) -> ((y, a), ixH (idx x)))
---       (binned range (IM.fromList $ zip [0 .. length xs] (repeat $ counter 0)))
+mooreBinned
+  :: Ord x
+  => [x] -> Moore' a b -> Moore' (x, a) (Binned x b)
+mooreBinned xs m =
+  layerF
+    (\(x, a) -> (a, ixH (binIdx0 xs x)))
+    $ Binned xs (IM.fromList $ zip [0 .. length xs - 2] (repeat $ m))
 
 
 mooreHisto1D
-  :: (Fractional a, Ord a)
-  => [a] -> Moore' (Identity a, a) (Binned Int (a, a) IntMap (Gauss Identity a))
+  :: (Num a, Ord a)
+  => [a] -> Moore' (Identity a, a) (Binned a (Gauss Identity a))
 mooreHisto1D xs =
-  premap (\(Identity v, w) -> (v, (Identity v, w))) $ mooreBinned1D xs mooreGauss
+  premap (\(Identity v, w) -> (v, (Identity v, w)))
+  $ mooreBinned xs mooreGauss
 
 
-
-bins :: FunctorWithIndex i v => Binned i b v a -> v (b, a)
-bins (Compose (Both f v)) = imap (\i -> (f i,)) v
-
-
-_Binned, _Compose :: Lens' (Compose f g a) (f (g (a)))
-_Compose = dimap getCompose Compose 
-
-_Binned = _Compose
+mooreProf1D
+  :: (Num a, Ord a)
+  => [a] -> Moore' (TF a, a) (Binned a (Gauss TF a))
+mooreProf1D xs =
+  premap (\(TF x y, w) -> (x, (TF x y, w)))
+  $ mooreBinned xs mooreGauss
 
 
-values :: Lens' (Binned i b v a) (v a)
+mooreHisto2D
+  :: (Num a, Ord a)
+  => [a] -> [a] -> Moore' (TF a, a) (Binned a (Binned a (Gauss TF a)))
+mooreHisto2D xs ys =
+  premap (\t@(TF x _, _) -> (x, t))
+  . mooreBinned xs
+  $ mooreProf1D ys
+
+
+binEdges :: Lens' (Binned x a) [x]
+binEdges = _Compose . _1
+
+
+values :: Lens' (Binned x a) (IM.IntMap a)
 values = _Compose . _2
 
 
-atH ::  Int -> Traversal' (Binned Int b IntMap a) (Maybe a)
+-- TODO
+-- this should be a Lens'
+atH :: Int -> Traversal' (Binned x a) (Maybe a)
 atH i = values . wander (flip alterF i)
 
 
-ixH :: Int -> Traversal' (Binned Int b IntMap a) a
+ixH :: Int -> Traversal' (Binned x a) a
 ixH i = atH i . _Just
   where
     _Just = dimap (maybe (Left ()) Right) (either (const Nothing) Just) . right'
-
 
 
 printInterval1D :: (Eq a, Fractional a, Show a) => (a, a) -> String
@@ -129,24 +126,34 @@ printInterval2D ((xl, yl), (xh, yh)) = intercalate "\t" $ show <$> [xl, xh, yl, 
 
 
 printBinned
-  :: (Foldable v, FunctorWithIndex i v, Monoid a)
+  :: Monoid a
   => (a -> String)
-  -> (b -> String)
-  -> (v (b, a) -> [(b, a)])
-  -> Binned i b v a
+  -> ((b, b) -> String)
+  -> Binned b a
   -> String
-printBinned showContents showInterval toList' b =
-  unlines $ "Total\tTotal\t" <> showContents tot : (uncurry showBin <$> binconts)
+printBinned showContents showInterval (Compose (Both xs im)) =
+  unlines $ "Total\tTotal\t" <> showContents tot : (showBin <$> binconts)
 
   where
-    tot = fold $ view values b
-    binconts = toList' $ bins b
-    showBin bi d = showInterval bi <> "\t" <> showContents d
+    tot = fold im
+    binconts = IM.toAscList im
+    showBin (i, d) = showInterval (binInterval xs i) <> "\t" <> showContents d
 
 
 test
   :: (Fractional b, Ord b)
-  => Moore' [(Identity b, b)] (Binned Int (b, b) IntMap (Gauss Identity b))
+  => Moore' [(Identity b, b)] (Binned b (Gauss Identity b))
 test =
-  chomps' [(2, 1), (4, -1), (1, 1)] . foldlMoore
-  $ mooreHisto1D [1, 2, 3]
+  chomps' [(Identity 2, 1), (Identity 4, -1), (Identity 1, 1), (Identity (-1), 10)]
+  . foldlMoore
+  $ mooreHisto1D [neginf, 1, 2, 3, inf]
+
+
+testProf
+  :: (Fractional b, Ord b)
+  => Moore' [(Identity b, b)] (Binned b (Gauss Identity b))
+testProf =
+  chomps' [(Identity 2, 1), (Identity 4, -1), (Identity 1, 1), (Identity (-1), 10)]
+  . foldlMoore
+  $ mooreHisto1D [neginf, 1, 2, 3, inf]
+

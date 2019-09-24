@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE UndecidableInstances         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE TemplateHaskell       #-}
 
@@ -19,6 +19,8 @@ import Data.Both
 import Data.Serialize
 import GHC.Generics
 import Data.List (intercalate)
+import Data.Biapplicative
+import Data.Bifunctor.Join
 import Data.Profunctor.Optic
 import Data.Functor.Identity
 import Data.Moore
@@ -65,6 +67,10 @@ instance (Additive v, Num a) => Semigroup (Gauss v a) where
 
 instance (Additive v, Num a) => Monoid (Gauss v a) where
   mempty = zero
+
+
+instance Biapplicative p => Additive (Join p) where
+  zero = pure 0
 
 
 fillGauss :: (Additive v, Num a) => Gauss v a -> (v a, a) -> Gauss v a
