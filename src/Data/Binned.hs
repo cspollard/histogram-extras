@@ -67,18 +67,18 @@ mooreBinned1D xs m =
       $ binned range (IM.fromList $ zip [0 .. length xs] (repeat $ m))
 
 
-mooreBinned2D
-  :: (Fractional x, Ord x)
-  => [y]
-  -> [x]
-  -> Moore' a b
-  -> Moore' (y, (x, a)) (Binned Int (y, y) IM.IntMap (Binned Int (x, x) IM.IntMap b))
-mooreBinned2D xs ys =
-  let Both xidx xrange = binning xs
-      Both yidx yrange = binning ys
-  in layerF
-      (\((x, y) a) -> ((y, a), ixH (idx x)))
-      (binned range (IM.fromList $ zip [0 .. length xs] (repeat $ counter 0)))
+-- mooreBinned2D
+--   :: (Fractional x, Ord x)
+--   => [y]
+--   -> [x]
+--   -> Moore' a b
+--   -> Moore' (y, (x, a)) (Binned Int (y, y) IM.IntMap (Binned Int (x, x) IM.IntMap b))
+-- mooreBinned2D xs ys =
+--   let Both xidx xrange = binning xs
+--       Both yidx yrange = binning ys
+--   in layerF
+--       (\((x, y) a) -> ((y, a), ixH (idx x)))
+--       (binned range (IM.fromList $ zip [0 .. length xs] (repeat $ counter 0)))
 
 
 mooreHisto1D
