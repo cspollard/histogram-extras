@@ -14,20 +14,16 @@ import Control.Lens (at)
 import Data.Map.Strict
 import Data.Both
 import Data.Profunctor.Optic
-import Data.Semigroup (First(..))
 import Data.Text           (Text)
 
-
-_First :: Lens' (First a) a
-_First f = dimap getFirst First f
 
 -- TODO
 -- these maps are not really strict.
 type Annotated = Both (Map Text Text)
 
+
 pattern Annotated :: Map Text Text -> a -> Annotated a
 pattern Annotated x y = Both x y
-
 
 
 annotated :: a -> Annotated a

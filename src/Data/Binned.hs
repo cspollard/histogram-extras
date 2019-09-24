@@ -9,7 +9,6 @@ module Data.Binned where
 
 
 import Data.Maybe (fromMaybe)
-import Analysis.Fold
 import Data.Foldable (fold)
 import Data.Both
 import Data.Functor.Compose
@@ -22,6 +21,21 @@ import Data.Functor.Identity
 
 
 type Binned x = Compose (Both [x]) IM.IntMap
+
+evenBins, evenBins' :: Fractional a => a -> Integer -> a -> [a]
+
+evenBins start num end =
+  let diff = (end - start) / fromInteger num
+  in (\n -> start + fromInteger n * diff) <$> [0..num+1]
+
+evenBins' start num end = neginf : evenBins start num end ++ [inf]
+
+
+logBins, logBins' :: Floating a => a -> Integer -> a -> [a]
+
+logBins start num end = exp <$> evenBins (log start) num (log end)
+
+logBins' start num end = neginf : logBins start num end ++ [inf]
 
 
 pattern Binned :: [x] -> IM.IntMap a -> Binned x a
@@ -57,13 +71,25 @@ binInterval xs = (!!) (ranges xs)
     ranges [] = []
 
 
+binned :: [x] -> [a] -> Binned x a
+binned xs vs = Compose . Both xs . IM.fromList $ zip [0 .. length xs - 2] vs
+
+
+defaultBinned :: [x] -> a -> Binned x a
+defaultBinned xs v = binned xs $ repeat v
+
+
+memptyBinned :: [x] -> Binned x a
+memptyBinned xs = binned xs mempty
+
+
 mooreBinned
   :: Ord x
   => [x] -> Moore' a b -> Moore' (x, a) (Binned x b)
 mooreBinned xs m =
   layerF
     (\(x, a) -> (a, ixH (binIdx0 xs x)))
-    $ Binned xs (IM.fromList $ zip [0 .. length xs - 2] (repeat $ m))
+    $ defaultBinned xs m
 
 
 mooreHisto1D
