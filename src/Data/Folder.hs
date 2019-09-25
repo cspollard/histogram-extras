@@ -1,0 +1,53 @@
+{-# LANGUAGE DerivingVia #-}
+
+
+module Data.Folder where
+
+-- import Data.Functor.Combinator
+-- import Data.Map.Monoidal.Strict
+-- 
+-- type MM = MonoidalMap
+-- 
+-- type Folder k = Free1 (MM k)
+-- 
+-- collapse :: _
+-- collapse = foldFree1 id $ mapWithKey (\k -> mapKeysMonotonic (k <>))
+-- 
+-- 
+-- makeLenses ''Folder
+-- 
+-- type instance Index (Folder a) = T.Text
+-- type instance IxValue (Folder a) = a
+-- 
+-- instance Ixed (Folder a) where
+--   ix i = toMap . ix i
+-- 
+-- instance At (Folder a) where
+--   at i = toMap . at i
+-- 
+-- instance FunctorWithIndex T.Text Folder where
+-- instance FoldableWithIndex T.Text Folder where
+-- instance TraversableWithIndex T.Text Folder where
+--   itraverse f (Folder m) = Folder <$> M.traverseWithKey f m
+-- 
+-- 
+-- instance Serialize a => Serialize (Folder a) where
+-- 
+-- inF :: (M.Map T.Text a -> M.Map T.Text b) -> Folder a -> Folder b
+-- inF = over toMap
+-- 
+-- inF2 :: (M.Map T.Text t1 -> M.Map T.Text t -> M.Map T.Text a) -> Folder t1 -> Folder t -> Folder a
+-- inF2 f (Folder m) (Folder m') = Folder $ f m m'
+-- 
+-- singleton :: T.Text -> a -> Folder a
+-- singleton n = Folder . M.singleton n
+-- 
+-- prefixF :: Text -> Folder a -> Folder a
+-- prefixF p = inF $ M.mapKeysMonotonic (p <>)
+-- 
+-- instance Semigroup a => Semigroup (Folder a) where
+--   (<>) = inF2 (M.unionWith (<>))
+-- 
+-- instance Semigroup a => Monoid (Folder a) where
+--   mempty = Folder M.empty
+--   mappend = (<>)
