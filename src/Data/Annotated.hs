@@ -10,11 +10,11 @@ module Data.Annotated
   ) where
 
 
-import Control.Lens (at)
+import Control.Lens hiding (_1)
 import Data.Map.Strict
 import Data.Both
-import Data.Profunctor.Optic
 import Data.Text           (Text)
+import Data.Profunctor.Optic (hubble, starry)
 
 
 -- TODO
@@ -30,17 +30,17 @@ annotated :: a -> Annotated a
 annotated = pure
 
 
-title :: Traversal' (Annotated a) (Maybe Text)
-title = _1 . wander (at "Title")
+title :: Lens' (Annotated a) (Maybe Text)
+title = hubble _1 . (at "Title")
 
 
-xlabel :: Traversal' (Annotated a) (Maybe Text)
-xlabel = _1 . wander (at "XLabel")
+xlabel :: Lens' (Annotated a) (Maybe Text)
+xlabel = hubble _1 . (at "XLabel")
 
 
-ylabel :: Traversal' (Annotated a) (Maybe Text)
-ylabel = _1 . wander (at "YLabel")
+ylabel :: Lens' (Annotated a) (Maybe Text)
+ylabel = hubble _1 . (at "YLabel")
 
 
-zlabel :: Traversal' (Annotated a) (Maybe Text)
-zlabel = _1 . wander (at "ZLabel")
+zlabel :: Lens' (Annotated a) (Maybe Text)
+zlabel = hubble _1 . (at "ZLabel")

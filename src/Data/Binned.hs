@@ -63,6 +63,10 @@ binIdx0 xs@(x:_) y =
     else fromMaybe 0 (findIndex (>= y) xs) - 1
 
 
+atBin :: Ord x => Binned x a -> x -> Maybe a
+atBin b@(Binned xs _) x = view (atH $ binIdx0 xs x) b
+
+
 binInterval :: [x] -> (Int -> (x, x))
 binInterval xs = (!!) (ranges xs)
   where
@@ -124,10 +128,27 @@ values :: Lens' (Binned x a) (IM.IntMap a)
 values = _Compose . _2
 
 
--- TODO
--- this should be a Lens'
-atH :: Int -> Traversal' (Binned x a) (Maybe a)
-atH i = values . wander (flip alterF i)
+
+alterP
+  :: Strong p
+  => p (Maybe a) (Maybe a) -> Key -> p (IM.IntMap a) (IM.IntMap a)
+-- This implementation was modified from 'Data.IntMap.Strict'
+alterP p k = dimap l r $ second' p
+  where
+    l im = let x = IM.lookup k im in ((im, x), x)
+
+    -- it wasn't there in the first place and we didn't add it
+    r ((im, Nothing), Nothing) = im
+    -- remove it
+    r ((im, Just _), Nothing) = IM.delete k im
+    -- we're adding or changing it
+    r ((im, _), Just v) = IM.insert k v im
+{-# INLINE alterP #-}
+
+
+
+atH :: Int -> Lens' (Binned x a) (Maybe a)
+atH i = values . (flip alterP i)
 
 
 ixH :: Int -> Traversal' (Binned x a) a
@@ -163,22 +184,3 @@ printBinned showContents showInterval (Compose (Both xs im)) =
     tot = fold im
     binconts = IM.toAscList im
     showBin (i, d) = showInterval (binInterval xs i) <> "\t" <> showContents d
-
-
-test
-  :: (Fractional b, Ord b)
-  => Moore' [(Identity b, b)] (Binned b (Gauss Identity b))
-test =
-  chomps' [(Identity 2, 1), (Identity 4, -1), (Identity 1, 1), (Identity (-1), 10)]
-  . foldlMoore
-  $ mooreHisto1D [neginf, 1, 2, 3, inf]
-
-
-testProf
-  :: (Fractional b, Ord b)
-  => Moore' [(Identity b, b)] (Binned b (Gauss Identity b))
-testProf =
-  chomps' [(Identity 2, 1), (Identity 4, -1), (Identity 1, 1), (Identity (-1), 10)]
-  . foldlMoore
-  $ mooreHisto1D [neginf, 1, 2, 3, inf]
-
