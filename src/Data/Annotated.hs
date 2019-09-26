@@ -14,7 +14,7 @@ import Control.Lens hiding (_1)
 import Data.Map.Strict
 import Data.Both
 import Data.Text           (Text)
-import Data.Profunctor.Optic (hubble, starry)
+import Data.Profunctor.Optic (hubble)
 
 
 -- TODO

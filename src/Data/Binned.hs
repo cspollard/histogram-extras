@@ -27,15 +27,19 @@ evenBins, evenBins' :: Fractional a => a -> Integer -> a -> [a]
 evenBins start num end =
   let diff = (end - start) / fromInteger num
   in (\n -> start + fromInteger n * diff) <$> [0..num+1]
+{-# INLINE evenBins #-}
 
 evenBins' start num end = neginf : evenBins start num end ++ [inf]
+{-# INLINE evenBins' #-}
 
 
 logBins, logBins' :: Floating a => a -> Integer -> a -> [a]
 
 logBins start num end = exp <$> evenBins (log start) num (log end)
+{-# INLINE logBins #-}
 
 logBins' start num end = neginf : logBins start num end ++ [inf]
+{-# INLINE logBins' #-}
 
 
 pattern Binned :: [x] -> IM.IntMap a -> Binned x a
@@ -51,7 +55,9 @@ _Binned = _Compose
 
 inf, neginf :: Fractional a => a
 inf = 1/0
+{-# INLINE inf  #-}
 neginf = negate inf
+{-# INLINE neginf  #-}
 
 
 -- indexing starts at 0
@@ -61,10 +67,12 @@ binIdx0 xs@(x:_) y =
   if y < x
     then (-1)
     else fromMaybe 0 (findIndex (>= y) xs) - 1
+{-# INLINE binIdx0  #-}
 
 
 atBin :: Ord x => Binned x a -> x -> Maybe a
-atBin b@(Binned xs _) x = view (atH $ binIdx0 xs x) b
+atBin b x = view (atH $ binIdx0 (view binEdges b) x) b
+{-# INLINE atBin  #-}
 
 
 binInterval :: [x] -> (Int -> (x, x))
@@ -73,18 +81,22 @@ binInterval xs = (!!) (ranges xs)
     ranges (y:y':ys) = (y, y') : ranges (y':ys)
     ranges [_] = []
     ranges [] = []
+{-# INLINE binInterval  #-}
 
 
 binned :: [x] -> [a] -> Binned x a
 binned xs vs = Compose . Both xs . IM.fromList $ zip [0 .. length xs - 2] vs
+{-# INLINE binned  #-}
 
 
 defaultBinned :: [x] -> a -> Binned x a
 defaultBinned xs v = binned xs $ repeat v
+{-# INLINE defaultBinned  #-}
 
 
 memptyBinned :: [x] -> Binned x a
 memptyBinned xs = binned xs mempty
+{-# INLINE memptyBinned  #-}
 
 
 mooreBinned
@@ -93,6 +105,7 @@ mooreBinned
 mooreBinned xs m = layerF go $ defaultBinned xs m
   where
     go (x, a) = (a, ixH (binIdx0 xs x))
+{-# INLINE mooreBinned #-}
 
 
 mooreHisto1D
@@ -101,6 +114,7 @@ mooreHisto1D
 mooreHisto1D xs =
   premap (\(Identity v, w) -> (v, (Identity v, w)))
   $ mooreBinned xs mooreGauss
+{-# INLINE mooreHisto1D #-}
 
 
 mooreProf1D
@@ -118,14 +132,17 @@ mooreHisto2D xs ys =
   premap (\t@(TF x _, _) -> (x, t))
   . mooreBinned xs
   $ mooreProf1D ys
+{-# INLINE mooreHisto2D #-}
 
 
 binEdges :: Lens' (Binned x a) [x]
 binEdges = _Compose . _1
+{-# INLINE binEdges  #-}
 
 
 values :: Lens' (Binned x a) (IM.IntMap a)
 values = _Compose . _2
+{-# INLINE values  #-}
 
 
 
@@ -149,12 +166,14 @@ alterP p k = dimap l r $ second' p
 
 atH :: Int -> Lens' (Binned x a) (Maybe a)
 atH i = values . (flip alterP i)
+{-# INLINE atH  #-}
 
 
 ixH :: Int -> Traversal' (Binned x a) a
 ixH i = atH i . _Just
   where
     _Just = dimap (maybe (Left ()) Right) (either (const Nothing) Just) . right'
+{-# INLINE ixH  #-}
 
 
 printInterval1D :: (Eq a, Fractional a, Show a) => (a, a) -> String
