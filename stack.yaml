@@ -9,7 +9,7 @@ extra-deps:
   - membership-0    
 
   - git: https://github.com/cspollard/profunctor-hep.git
-    commit: 7ae0ade9ba30d51fbe7a4ca052b75aec7f2f38de
+    commit: 54cede9f0f448bc929467e862d4478b0d33fdd9a
 
 resolver: lts-14.7
 
