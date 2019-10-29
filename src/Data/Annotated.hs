@@ -24,7 +24,7 @@ type Notes = StrictMap Text Text
 
 newtype Annotated a = Annotated (Both Notes a)
   deriving (Functor, Apply, Applicative, Bind, Monad) via (Both (StrictMap Text Text))
-  deriving Generic
+  deriving (Foldable, Traversable, Generic)
 
 
 instance Serialize a => Serialize (Annotated a) where
