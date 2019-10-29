@@ -29,6 +29,7 @@ default-extensions:
 
 dependencies:
 - base
+- cereal-text
 - bifunctors
 - semialign
 - these

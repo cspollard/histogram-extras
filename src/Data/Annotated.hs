@@ -1,6 +1,5 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Data.Annotated
@@ -16,12 +15,19 @@ import Data.StrictMap
 import Both
 import Data.Functor.Bind
 import Data.Text           (Text)
+import Data.Serialize
+import Data.Serialize.Text ()
+import GHC.Generics
 
  
 type Notes = StrictMap Text Text
 
 newtype Annotated a = Annotated (Both Notes a)
   deriving (Functor, Apply, Applicative, Bind, Monad) via (Both (StrictMap Text Text))
+  deriving Generic
+
+
+instance Serialize a => Serialize (Annotated a) where
 
 
 annotated :: Notes -> a -> Annotated a

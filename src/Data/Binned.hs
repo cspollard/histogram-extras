@@ -19,8 +19,11 @@ import Data.Functor.Apply
 import Data.Functor.Identity
 import Control.Lens
 import GHC.Exts (fromList)
+import GHC.Generics
 import Optic (starry)
 import Control.Arrow (arr)
+import Data.Serialize
+import Data.Histogram.Instances ()
 
 
 inf, neginf :: Fractional a => a
@@ -30,8 +33,11 @@ neginf = negate inf
 
 newtype Binned x a
   = Binned { runBinned :: Compose (Both (First [x])) StrictIntMap a }
-    deriving (Functor, Foldable, Traversable)
+    deriving (Functor, Foldable, Traversable, Generic)
     deriving (Apply) via (Compose (Both (First [x])) StrictIntMap)
+
+
+instance (Serialize x, Serialize a) => Serialize (Binned x a) where
 
 
 type Binned2D x y z = Compose (Binned x) (Binned y) z
