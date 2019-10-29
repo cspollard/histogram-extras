@@ -43,7 +43,6 @@ binnedDecomp :: Binned x a -> ([x], StrictIntMap a)
 binnedDecomp (Binned (Compose (Both (First xs) im))) = (xs, im)
 
 
-
 evenBins, evenBins' :: Fractional a => a -> Integer -> a -> [a]
 
 evenBins start num end =
@@ -70,10 +69,8 @@ binContents :: Lens (Binned x a) (Binned x b) (StrictIntMap a) (StrictIntMap b)
 binContents = _Binned . _Compose . _2
 
 
-
-
 -- indexing starts at 0
-binIdx0 :: Ord x => [x] -> (x -> Int)
+binIdx0 :: Ord x => [x] -> x -> Int
 binIdx0 [] _ = -1
 binIdx0 xs@(x:_) y =
   if y < x
@@ -87,6 +84,11 @@ binInterval xs = (!!) (ranges xs)
     ranges (y:y':ys) = (y, y') : ranges (y':ys)
     ranges [_]       = []
     ranges []        = []
+
+
+atBin :: Ord x => Binned x a -> x -> Maybe a
+atBin (Binned (Compose (Both (First xs) m))) x =
+  view (at $ binIdx0 xs x) m
 
 
 defaultBinned :: [x] -> a -> Binned x a
