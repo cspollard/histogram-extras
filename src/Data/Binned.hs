@@ -1,26 +1,35 @@
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE PatternSynonyms           #-}
+{-# LANGUAGE TypeFamilies              #-}
 
 module Data.Binned where
 
 
-import Data.Maybe (fromMaybe)
-import Data.Foldable (fold)
-import Data.Both
-import Data.Functor.Compose
-import Data.Profunctor.Optic
-import Data.Moore
-import Data.List (findIndex, intercalate)
-import Data.IntMap.Strict as IM
-import Data.Gauss
-import Data.Functor.Identity
+import           Both
+import           Data.Foldable         (fold)
+import           Data.Functor.Compose
+import           Data.Gauss
+import           Data.StrictIntMap
+import           Data.List             (findIndex, intercalate)
+import           Data.Maybe            (fromMaybe)
+import           Moore
+import           Optic
+import Data.Semigroup (First(..))
+import Data.Functor.Apply
 
 
-type Binned x = Compose (Both [x]) IM.IntMap
+newtype Binned x a
+  = Binned { runBinned :: Compose (Both (First [x])) StrictStrictIntMap a }
+    deriving (Functor, Foldable, Traversable)
+    deriving (Apply) via (Compose (Both (First [x])) StrictStrictIntMap)
+
+
+binned :: [x] -> StrictStrictIntMap a -> Binned x a
+binned xs im = Binned (Compose (Both (First xs) im))
+
+binnedDecomp :: Binned x a -> ([x], StrictIntMap a)
+binnedDecomp (Binned (Compose (Both (First xs) im))) = (xs, im)
+
+
 
 evenBins, evenBins' :: Fractional a => a -> Integer -> a -> [a]
 
@@ -42,15 +51,12 @@ logBins' start num end = neginf : logBins start num end ++ [inf]
 {-# INLINE logBins' #-}
 
 
-pattern Binned :: [x] -> IM.IntMap a -> Binned x a
-pattern Binned xs im = Compose (Both xs im)
 
+binEdges :: Lens' (Binned x a) [x]
+binEdges p = dimap binnedDecomp binnedComp $ first' p
 
-_Compose :: Lens' (Compose f g a) (f (g (a)))
-_Compose = dimap getCompose Compose 
-
-_Binned :: Lens' (Binned x a) (Both [x] (IM.IntMap a))
-_Binned = _Compose
+binContents :: Lens' (Binned x a) (StrictStrictIntMap a)
+binContents p = dimap binnedDecomp binnedComp $ second' p
 
 
 inf, neginf :: Fractional a => a
@@ -79,8 +85,8 @@ binInterval :: [x] -> (Int -> (x, x))
 binInterval xs = (!!) (ranges xs)
   where
     ranges (y:y':ys) = (y, y') : ranges (y':ys)
-    ranges [_] = []
-    ranges [] = []
+    ranges [_]       = []
+    ranges []        = []
 {-# INLINE binInterval  #-}
 
 
@@ -100,17 +106,19 @@ memptyBinned xs = binned xs mempty
 
 
 mooreBinned
-  :: Ord x
+  :: forall x a b. Ord x
   => [x] -> Moore' a b -> Moore' (x, a) (Binned x b)
 mooreBinned xs m = layerF go $ defaultBinned xs m
   where
+    go :: (x, a) -> (a, Optic' (->) (Binned x (Moore' a b)) (Moore' a b))
+    -- ixH :: Int -> Traversal' (Binned x a) a
     go (x, a) = (a, ixH (binIdx0 xs x))
-{-# INLINE mooreBinned #-}
+-- {-# INLINE mooreBinned #-}
 
 
 mooreHisto1D
   :: (Num a, Ord a)
-  => [a] -> Moore' (Identity a, a) (Binned a (Gauss Identity a))
+  => [a] -> Moore (->) (Identity a, a) (Binned a (Gauss Identity a))
 mooreHisto1D xs =
   premap (\(Identity v, w) -> (v, (Identity v, w)))
   $ mooreBinned xs mooreGauss
@@ -119,7 +127,7 @@ mooreHisto1D xs =
 
 mooreProf1D
   :: (Num a, Ord a)
-  => [a] -> Moore' (TF a, a) (Binned a (Gauss TF a))
+  => [a] -> Moore (->) (TF a, a) (Binned a (Gauss TF a))
 mooreProf1D xs =
   premap (\(TF x y, w) -> (x, (TF x y, w)))
   $ mooreBinned xs mooreGauss
@@ -127,7 +135,7 @@ mooreProf1D xs =
 
 mooreHisto2D
   :: (Num a, Ord a)
-  => [a] -> [a] -> Moore' (TF a, a) (Binned a (Binned a (Gauss TF a)))
+  => [a] -> [a] -> Moore (->) (TF a, a) (Binned a (Binned a (Gauss TF a)))
 mooreHisto2D xs ys =
   premap (\t@(TF x _, _) -> (x, t))
   . mooreBinned xs
@@ -135,21 +143,11 @@ mooreHisto2D xs ys =
 {-# INLINE mooreHisto2D #-}
 
 
-binEdges :: Lens' (Binned x a) [x]
-binEdges = _Compose . _1
-{-# INLINE binEdges  #-}
-
-
-values :: Lens' (Binned x a) (IM.IntMap a)
-values = _Compose . _2
-{-# INLINE values  #-}
-
-
 
 alterP
   :: Strong p
-  => p (Maybe a) (Maybe a) -> Key -> p (IM.IntMap a) (IM.IntMap a)
--- This implementation was modified from 'Data.IntMap.Strict'
+  => p (Maybe a) (Maybe a) -> Key -> p (StrictStrictIntMap a) (StrictStrictIntMap a)
+-- This implementation was modified from 'Data.StrictIntMap.Strict'
 alterP p k = dimap l r $ second' p
   where
     l im = let x = IM.lookup k im in ((im, x), x)
@@ -157,15 +155,15 @@ alterP p k = dimap l r $ second' p
     -- it wasn't there in the first place and we didn't add it
     r ((im, Nothing), Nothing) = im
     -- remove it
-    r ((im, Just _), Nothing) = IM.delete k im
+    r ((im, Just _), Nothing)  = IM.delete k im
     -- we're adding or changing it
-    r ((im, _), Just v) = IM.insert k v im
+    r ((im, _), Just v)        = IM.insert k v im
 {-# INLINE alterP #-}
 
 
 
 atH :: Int -> Lens' (Binned x a) (Maybe a)
-atH i = values . (flip alterP i)
+atH i = binContents . (flip alterP i)
 {-# INLINE atH  #-}
 
 
@@ -181,7 +179,7 @@ printInterval1D (x, y) =
   case (x == neginf, y == inf) of
     (True, _) -> "Underflow\tUnderflow"
     (_, True) -> "Overflow\tOverflow"
-    _ -> show x <> "\t" <> show y
+    _         -> show x <> "\t" <> show y
 
 
 -- TODO

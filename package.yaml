@@ -16,16 +16,33 @@ copyright:           "2019 Chris Pollard"
 description:         Please see the README on GitHub at <https://github.com/githubuser/test#readme>
 
 
+default-extensions:
+- RankNTypes
+- ScopedTypeVariables
+- TupleSections
+- DerivingVia
+- DeriveFunctor
+- DeriveFoldable
+- DeriveTraversable
+- DeriveGeneric
+- PatternSynonyms
+
 dependencies:
 - base
 - bifunctors
+- semialign
+- semigroupoids
 - lens
 - linear
 - profunctors
 - text
 - cereal
 - containers
-- profunctor-hep
+- hashable
+- unordered-containers
+- keys
+- variation
+- moore
 
 library:
   source-dirs: src

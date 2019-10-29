@@ -5,42 +5,51 @@
 
 module Data.Annotated
   ( Annotated, annotated
-  , pattern Annotated
+  , _Annotated, Notes
+  , notes, noted
   , title, xlabel, ylabel, zlabel
   ) where
 
 
-import Control.Lens hiding (_1)
-import Data.Map.Strict
-import Data.Both
+import Control.Lens
+import Data.StrictMap
+import Both
+import Data.Functor.Bind
 import Data.Text           (Text)
-import Data.Profunctor.Optic (hubble)
 
+ 
+type Notes = StrictMap Text Text
 
--- TODO
--- these maps are not really strict.
-type Annotated = Both (Map Text Text)
-
-
-pattern Annotated :: Map Text Text -> a -> Annotated a
-pattern Annotated x y = Both x y
+newtype Annotated a = Annotated (Both Notes a)
+  deriving (Functor, Apply, Applicative, Bind, Monad) via (Both (StrictMap Text Text))
 
 
 annotated :: a -> Annotated a
 annotated = pure
 
 
+_Annotated :: Iso (Annotated a) (Annotated b) (Both (StrictMap Text Text) a) (Both (StrictMap Text Text) b)
+_Annotated = coerced
+
+notes :: Lens' (Annotated a) (StrictMap Text Text)
+notes = _Annotated . _1
+
+
+noted :: Lens (Annotated a) (Annotated b) a b
+noted = _Annotated . _2
+
+
 title :: Lens' (Annotated a) (Maybe Text)
-title = hubble _1 . (at "Title")
+title = notes . (at "Title")
 
 
 xlabel :: Lens' (Annotated a) (Maybe Text)
-xlabel = hubble _1 . (at "XLabel")
+xlabel = notes . (at "XLabel")
 
 
 ylabel :: Lens' (Annotated a) (Maybe Text)
-ylabel = hubble _1 . (at "YLabel")
+ylabel = notes . (at "YLabel")
 
 
 zlabel :: Lens' (Annotated a) (Maybe Text)
-zlabel = hubble _1 . (at "ZLabel")
+zlabel = notes . (at "ZLabel")

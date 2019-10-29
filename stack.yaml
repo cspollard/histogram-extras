@@ -2,14 +2,11 @@ flags: {}
 extra-package-dbs: []
 packages:
 - '.'
+- '../moore.git'
+- '../variation.git'
 
 extra-deps:
   - extensible-0.5.1    
-
   - membership-0    
 
-  - git: https://github.com/cspollard/profunctor-hep.git
-    commit: 54cede9f0f448bc929467e862d4478b0d33fdd9a
-
 resolver: lts-14.7
-

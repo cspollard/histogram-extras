@@ -11,19 +11,18 @@ module Data.Gauss
   ) where
 
 
-import Control.Lens (makeLenses)
+import Control.Lens
 import Data.Proxy
 import Linear.Vector
 import Linear.Matrix
-import Data.Both
+import Both
 import Data.Serialize
 import GHC.Generics
 import Data.List (intercalate)
 import Data.Biapplicative
 import Data.Bifunctor.Join
-import Data.Profunctor.Optic
 import Data.Functor.Identity
-import Data.Moore
+import Moore
 
 
 data Gauss v a
@@ -90,22 +89,22 @@ mooreGauss = feedback $ liftMoore zero (uncurry fillGauss)
 printGauss1D :: Show a => Gauss1D a -> String
 printGauss1D d =
   intercalate "\t"
-  [ views (starry sumW) show d
-  , views (starry sumWW) show d
-  , views (starry sumWX) (show.runIdentity) d
-  , views (starry sumWXY) (show.runIdentity.runIdentity) d
-  , views (starry nentries) show d
+  [ views sumW show d
+  , views sumWW show d
+  , views sumWX (show.runIdentity) d
+  , views sumWXY (show.runIdentity.runIdentity) d
+  , views nentries show d
   ]
 
 
 printGauss2D :: Show a => Gauss2D a -> String
 printGauss2D d =
   intercalate "\t"
-  $ [ views (starry sumW) show d
-  , views (starry sumWW) show d
-  , views (starry sumWX . true) show d
-  , views (starry sumWXY . true . true) show d
-  , views (starry sumWX . false) show d
-  , views (starry sumWXY . false . false) show d
-  , views (starry nentries) show d
+  $ [ views sumW show d
+  , views sumWW show d
+  , views (sumWX . true) show d
+  , views (sumWXY . true . true) show d
+  , views (sumWX . false) show d
+  , views (sumWXY . false . false) show d
+  , views nentries show d
   ]
