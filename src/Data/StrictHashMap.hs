@@ -13,13 +13,11 @@ module Data.StrictHashMap
 import           Prelude hiding (zip, lookup)
 import           Control.Lens
 import           Data.Align
-import           Data.These
 import           Data.Data
 import           Data.Functor.Classes
 import qualified Data.HashMap.Strict  as M
 import           Data.Key hiding (zip)
 import           Data.Serialize
-import qualified Data.Text            as T
 import           GHC.Exts             (IsList (..))
 import           GHC.Generics
 import           Linear.Matrix        (Trace (..))
@@ -95,8 +93,9 @@ instance Traversable (StrictHashMap k) where
 
 
 instance (Hashable k, Eq k) => Semialign (StrictHashMap k) where
-  alignWith f (SHM m) (SHM m') =
-    SHM $ alignWith f m m'
+  zipWith f = liftSHM2 (M.intersectionWith f)
+
+  alignWith f (SHM m) (SHM m') = SHM $ alignWith f m m'
 
 
 instance (Hashable k, Eq k) => Align (StrictHashMap k) where

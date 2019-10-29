@@ -20,7 +20,6 @@ import qualified Data.IntMap.Strict  as M
 import qualified Data.IntMap.Merge.Strict  as M
 import           Data.Key hiding (zip)
 import           Data.Serialize
-import qualified Data.Text            as T
 import           GHC.Exts             (IsList (..))
 import           GHC.Generics
 import           Linear.Matrix        (Trace (..))
@@ -94,6 +93,8 @@ instance Traversable (StrictIntMap) where
 
 
 instance Semialign (StrictIntMap) where
+  zipWith f = liftSIM2 (M.intersectionWith f)
+
   alignWith f (SIM m) (SIM m') =
     SIM
     $ M.merge

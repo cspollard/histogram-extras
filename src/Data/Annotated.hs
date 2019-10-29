@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Data.Annotated
-  ( Annotated, annotated
+  ( Annotated(..), annotated
   , _Annotated, Notes
   , notes, noted
   , title, xlabel, ylabel, zlabel
@@ -30,6 +30,7 @@ annotated = pure
 
 _Annotated :: Iso (Annotated a) (Annotated b) (Both (StrictMap Text Text) a) (Both (StrictMap Text Text) b)
 _Annotated = coerced
+
 
 notes :: Lens' (Annotated a) (StrictMap Text Text)
 notes = _Annotated . _1
