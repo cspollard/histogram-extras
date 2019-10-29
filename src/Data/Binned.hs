@@ -53,7 +53,7 @@ evenBins, evenBins' :: Fractional a => a -> Integer -> a -> [a]
 
 evenBins start num end =
   let diff = (end - start) / fromInteger num
-  in (\n -> start + fromInteger n * diff) <$> [0..num+1]
+  in (\n -> start + fromInteger n * diff) <$> [0..num]
 
 evenBins' start num end = neginf : evenBins start num end ++ [inf]
 
@@ -84,12 +84,10 @@ binIdx0 xs@(x:_) y =
     else fromMaybe 0 (findIndex (>= y) xs) - 1
 
 
-binInterval :: [x] -> (Int -> (x, x))
-binInterval xs = (!!) (ranges xs)
-  where
-    ranges (y:y':ys) = (y, y') : ranges (y':ys)
-    ranges [_]       = []
-    ranges []        = []
+binRanges :: [a] -> [(a, a)]
+binRanges (y:y':ys) = (y, y') : binRanges (y':ys)
+binRanges [_]       = []
+binRanges []        = []
 
 
 atBin :: Ord x => Binned x a -> x -> Maybe a
@@ -98,7 +96,8 @@ atBin (Binned (Compose (Both (First xs) m))) x =
 
 
 defaultBinned :: [x] -> a -> Binned x a
-defaultBinned xs v = binned xs . fromList $ imap (\i _ -> (i, v)) xs
+defaultBinned [] _ = binned [] mempty
+defaultBinned xs v = binned xs . fromList . imap (\i _ -> (i, v)) $ tail xs
 
 
 memptyBinned :: Monoid a => [x] -> Binned x a
@@ -167,4 +166,5 @@ printBinned showContents showInterval b =
     (xs, im) = binnedDecomp b
     tot = fold im
     binconts = inSIM IM.toAscList im
-    showBin (i, d) = showInterval (binInterval xs i) <> "\t" <> showContents d
+    ranges = binRanges xs
+    showBin (i, d) = showInterval (ranges !! i) <> "\t" <> showContents d
