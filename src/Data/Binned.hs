@@ -122,9 +122,10 @@ mooreProf1D xs =
 
 mooreHisto2D
   :: (Num a, Ord a)
-  => [a] -> [a] -> Moore (->) (TF a, a) (Binned a (Binned a (Gauss TF a)))
+  => [a] -> [a] -> Moore (->) (TF a, a) (Compose (Binned a) (Binned a) (Gauss TF a))
 mooreHisto2D xs ys =
   premap (\t@(TF x _, _) -> (x, t))
+  . fmap Compose
   . mooreBinned xs
   $ mooreProf1D ys
 

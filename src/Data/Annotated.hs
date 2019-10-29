@@ -24,8 +24,8 @@ newtype Annotated a = Annotated (Both Notes a)
   deriving (Functor, Apply, Applicative, Bind, Monad) via (Both (StrictMap Text Text))
 
 
-annotated :: a -> Annotated a
-annotated = pure
+annotated :: Notes -> a -> Annotated a
+annotated n a = Annotated (Both n a)
 
 
 _Annotated :: Iso (Annotated a) (Annotated b) (Both (StrictMap Text Text) a) (Both (StrictMap Text Text) b)
