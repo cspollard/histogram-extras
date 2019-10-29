@@ -34,6 +34,8 @@ newtype Binned x a
     deriving (Apply) via (Compose (Both (First [x])) StrictIntMap)
 
 
+type Binned2D x y z = Compose (Binned x) (Binned y) z
+
 binned :: [x] -> StrictIntMap a -> Binned x a
 binned xs im = Binned (Compose (Both (First xs) im))
 
