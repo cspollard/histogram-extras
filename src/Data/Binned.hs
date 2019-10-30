@@ -10,10 +10,10 @@ import           Data.Functor.Compose
 import           Data.Gauss
 import           Data.StrictIntMap
 import qualified Data.IntMap.Strict as IM
-import           Data.List             (findIndex, intercalate)
+import           Data.List             (findIndex)
 import           Data.Maybe            (fromMaybe, catMaybes)
 import           Moore
-import Data.Semigroup (First(..))
+import Data.Semigroup (Last(..))
 import Data.Functor.Apply
 import Data.Functor.Identity
 import Control.Lens
@@ -23,6 +23,7 @@ import Optic (starry)
 import Control.Arrow (arr)
 import Data.Serialize
 import Data.Histogram.Instances ()
+import Data.Foldable (fold)
 
 
 inf, neginf :: Fractional a => a
@@ -31,15 +32,16 @@ neginf = negate inf
 
 
 newtype Binned x a
-  = B { runBinned :: Compose (Both (First [x])) StrictIntMap a }
+  = B { runB :: Compose (Both (Last [x])) StrictIntMap a }
     deriving (Functor, Foldable, Traversable, Generic)
-    deriving (Apply) via (Compose (Both (First [x])) StrictIntMap)
-
+    deriving (Apply) via (Compose (Both (Last [x])) StrictIntMap)
+    deriving (Semigroup) via (Both (Last [x]) (StrictIntMap a))
 
 pattern Binned :: [x] -> StrictIntMap a -> Binned x a
-pattern Binned xs sm = B (Compose (Both (First xs) sm))
+pattern Binned xs sm = B (Compose (Both (Last xs) sm))
 
 
+instance (Serialize a) => Serialize (Last a) where
 instance (Serialize x, Serialize a) => Serialize (Binned x a) where
 
 
@@ -66,10 +68,10 @@ logBins' start num end = neginf : logBins start num end ++ [inf]
 
 makePrisms ''Binned
 makePrisms ''Compose
-makePrisms ''First
+makePrisms ''Last
 
 binEdges :: Lens (Binned x a) (Binned y a) [x] [y]
-binEdges = _B . _Compose . _1 . _First
+binEdges = _B . _Compose . _1 . _Last
 
 
 binContents :: Lens (Binned x a) (Binned x b) (StrictIntMap a) (StrictIntMap b)
@@ -149,10 +151,12 @@ printInterval1D (x, y) =
 
 -- TODO
 -- this does not handle overflows
-printInterval2D :: (Show a, RealFloat a) => ((a, a), (a, a)) -> String
-printInterval2D ((xl, xh), (yl, yh))
-  | any isInfinite [xl, xh, yl, yh] = "Overflow\tOverflow"
-  | otherwise = intercalate "\t" $ show <$> [xl, xh, yl, yh]
+printInterval2D :: (Show a, Eq a, Fractional a) => (a, a) -> Maybe String
+printInterval2D (xl, xh) =
+  case (xl == neginf, xh == inf) of
+    (True, _) -> Nothing
+    (_, True) -> Nothing
+    _         -> Just $ show xl <> "\t" <> show xh
 
 
 binList :: Binned b a -> [((b, b), a)]
@@ -162,18 +166,43 @@ binList (Binned xs im) = zip ranges binconts
     ranges = binRanges xs
 
 
-printBinned
-  :: Monoid a
-  => ((b, b) -> Maybe String)
-  -> (a -> Maybe String)
+
+printBinned1D
+  :: (Monoid a, Eq b, Fractional b, Show b)
+  => (a -> String)
   -> Binned b a
   -> String
-printBinned showInterval showContents b =
-  unlines . catMaybes
-  $ Just "Total\tTotal\t" <> showContents tot
-    : (showBin <$> bl)
+printBinned1D printContents b =
+  unlines $ "Total\tTotal\t" <> printContents tot : (printBin <$> bl)
 
   where
     bl = binList b
-    tot = foldMap snd bl
-    showBin (bi, d) = mconcat <$> sequenceA [showInterval bi, Just "\t", showContents d]
+    tot = fold b
+    printBin (bi, d) = printInterval1D bi <> "\t" <> printContents d
+
+
+printHisto1D :: Binned Double (Gauss1D Double) -> String
+printHisto1D = printBinned1D printGauss1D
+
+
+printBinned2D
+  :: (Monoid a, Eq b, Fractional b, Show b, Eq c, Fractional c, Show c)
+  => (a -> String)
+  -> Compose (Binned b) (Binned c) a
+  -> String
+printBinned2D printContents b =
+  unlines . catMaybes
+  $ Just ("Total\tTotal\t" <> printContents tot)
+    : (printBin <$> bl)
+
+  where
+    Compose b' = b
+
+    bl = do
+      (xbinedges, ybin) <- binList b'
+      (ybinedges, val) <- binList ybin
+      return ((xbinedges, ybinedges), val)
+
+    tot = fold b
+    printBin ((bx, by), d) =
+      mconcat <$> sequenceA [printInterval2D bx, printInterval2D by, Just $ printContents d]
