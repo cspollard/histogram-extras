@@ -10,7 +10,4 @@ extra-deps:
   - git: https://github.com/cspollard/variation.git
     commit: 214c582b787052d0a13187f49b05b23cd1169bed
 
-  - extensible-0.5.1    
-  - membership-0    
-
 resolver: lts-14.7

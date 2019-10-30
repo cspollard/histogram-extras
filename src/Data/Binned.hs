@@ -6,13 +6,12 @@ module Data.Binned where
 
 
 import           Both
-import           Data.Foldable         (fold)
 import           Data.Functor.Compose
 import           Data.Gauss
 import           Data.StrictIntMap
 import qualified Data.IntMap.Strict as IM
 import           Data.List             (findIndex, intercalate)
-import           Data.Maybe            (fromMaybe)
+import           Data.Maybe            (fromMaybe, catMaybes)
 import           Moore
 import Data.Semigroup (First(..))
 import Data.Functor.Apply
@@ -32,9 +31,13 @@ neginf = negate inf
 
 
 newtype Binned x a
-  = Binned { runBinned :: Compose (Both (First [x])) StrictIntMap a }
+  = B { runBinned :: Compose (Both (First [x])) StrictIntMap a }
     deriving (Functor, Foldable, Traversable, Generic)
     deriving (Apply) via (Compose (Both (First [x])) StrictIntMap)
+
+
+pattern Binned :: [x] -> StrictIntMap a -> Binned x a
+pattern Binned xs sm = B (Compose (Both (First xs) sm))
 
 
 instance (Serialize x, Serialize a) => Serialize (Binned x a) where
@@ -43,10 +46,7 @@ instance (Serialize x, Serialize a) => Serialize (Binned x a) where
 type Binned2D x y z = Compose (Binned x) (Binned y) z
 
 binned :: [x] -> StrictIntMap a -> Binned x a
-binned xs im = Binned (Compose (Both (First xs) im))
-
-binnedDecomp :: Binned x a -> ([x], StrictIntMap a)
-binnedDecomp (Binned (Compose (Both (First xs) im))) = (xs, im)
+binned = Binned
 
 
 evenBins, evenBins' :: Fractional a => a -> Integer -> a -> [a]
@@ -69,10 +69,11 @@ makePrisms ''Compose
 makePrisms ''First
 
 binEdges :: Lens (Binned x a) (Binned y a) [x] [y]
-binEdges = _Binned . _Compose . _1 . _First
+binEdges = _B . _Compose . _1 . _First
+
 
 binContents :: Lens (Binned x a) (Binned x b) (StrictIntMap a) (StrictIntMap b)
-binContents = _Binned . _Compose . _2
+binContents = _B . _Compose . _2
 
 
 -- indexing starts at 0
@@ -91,8 +92,7 @@ binRanges []        = []
 
 
 atBin :: Ord x => Binned x a -> x -> Maybe a
-atBin (Binned (Compose (Both (First xs) m))) x =
-  view (at $ binIdx0 xs x) m
+atBin (Binned xs m) x = view (at $ binIdx0 xs x) m
 
 
 defaultBinned :: [x] -> a -> Binned x a
@@ -149,22 +149,31 @@ printInterval1D (x, y) =
 
 -- TODO
 -- this does not handle overflows
-printInterval2D :: Show a => ((a, a), (a, a)) -> String
-printInterval2D ((xl, yl), (xh, yh)) = intercalate "\t" $ show <$> [xl, xh, yl, yh]
+printInterval2D :: (Show a, RealFloat a) => ((a, a), (a, a)) -> String
+printInterval2D ((xl, xh), (yl, yh))
+  | any isInfinite [xl, xh, yl, yh] = "Overflow\tOverflow"
+  | otherwise = intercalate "\t" $ show <$> [xl, xh, yl, yh]
+
+
+binList :: Binned b a -> [((b, b), a)]
+binList (Binned xs im) = zip ranges binconts
+  where
+    binconts = snd <$> inSIM IM.toAscList im
+    ranges = binRanges xs
 
 
 printBinned
   :: Monoid a
-  => (a -> String)
-  -> ((b, b) -> String)
+  => ((b, b) -> Maybe String)
+  -> (a -> Maybe String)
   -> Binned b a
   -> String
-printBinned showContents showInterval b =
-  unlines $ "Total\tTotal\t" <> showContents tot : (showBin <$> binconts)
+printBinned showInterval showContents b =
+  unlines . catMaybes
+  $ Just "Total\tTotal\t" <> showContents tot
+    : (showBin <$> bl)
 
   where
-    (xs, im) = binnedDecomp b
-    tot = fold im
-    binconts = inSIM IM.toAscList im
-    ranges = binRanges xs
-    showBin (i, d) = showInterval (ranges !! i) <> "\t" <> showContents d
+    bl = binList b
+    tot = foldMap snd bl
+    showBin (bi, d) = mconcat <$> sequenceA [showInterval bi, Just "\t", showContents d]
