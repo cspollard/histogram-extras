@@ -84,6 +84,7 @@ mapMaybeWithKey f (SHM m) = SHM $ M.mapMaybeWithKey f m
 
 instance Functor (StrictHashMap k) where
   fmap f (SHM m) = SHM $ M.map f m
+  {-# INLINE fmap  #-}
 
 instance Foldable (StrictHashMap k) where
   foldr f start = foldr f start . unSHM

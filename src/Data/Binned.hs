@@ -2,7 +2,22 @@
 {-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE TemplateHaskell              #-}
 
-module Data.Binned where
+module Data.Binned
+  ( Binned
+  , pattern Binned
+  , Binned2D
+  , binned
+  , evenBins, evenBins'
+  , logBins, logBins'
+  , binEdges, binContents, binRanges, atBin
+  , binList
+  , defaultBinned, memptyBinned
+  , mooreBinned
+  , mooreHisto1D, mooreProf1D, mooreHisto2D
+  , printInterval1D, printInterval2D
+  , printHisto1D
+  , printBinned1D, printBinned2D
+  ) where
 
 
 import           Both
@@ -10,7 +25,7 @@ import           Data.Functor.Compose
 import           Data.Gauss
 import           Data.StrictIntMap
 import qualified Data.IntMap.Strict as IM
-import           Data.List             (findIndex)
+import           Data.List             (findIndex, intercalate)
 import           Data.Maybe            (fromMaybe, catMaybes)
 import           Moore
 import Data.Semigroup (Last(..))
@@ -117,7 +132,8 @@ mooreBinned xs m = simplify . layerF (arr go) $ defaultBinned xs (generalize m)
 
 mooreHisto1D
   :: (Num a, Ord a)
-  => [a] -> Moore (->) (Identity a, a) (Binned a (Gauss Identity a))
+  => [a] -- ^ x bin edges
+  -> Moore (->) (Identity a, a) (Binned a (Gauss Identity a))
 mooreHisto1D xs =
   premap (\(Identity v, w) -> (v, (Identity v, w)))
   $ mooreBinned xs mooreGauss
@@ -125,7 +141,8 @@ mooreHisto1D xs =
 
 mooreProf1D
   :: (Num a, Ord a)
-  => [a] -> Moore (->) (TF a, a) (Binned a (Gauss TF a))
+  => [a] -- ^ x bin edges
+  -> Moore (->) (TF a, a) (Binned a (Gauss TF a))
 mooreProf1D xs =
   premap (\(TF x y, w) -> (x, (TF x y, w)))
   $ mooreBinned xs mooreGauss
@@ -133,12 +150,14 @@ mooreProf1D xs =
 
 mooreHisto2D
   :: (Num a, Ord a)
-  => [a] -> [a] -> Moore (->) (TF a, a) (Compose (Binned a) (Binned a) (Gauss TF a))
+  => [a] -- ^ x bin edges
+  -> [a] -- ^ y bin edges
+  -> Moore (->) (TF a, a) (Compose (Binned a) (Binned a) (Gauss TF a))
 mooreHisto2D xs ys =
-  premap (\t@(TF x _, _) -> (x, t))
+  premap (\t@(TF _ y, _) -> (y, t))
   . fmap Compose
-  . mooreBinned xs
-  $ mooreProf1D ys
+  . mooreBinned ys
+  $ mooreProf1D xs
 
 
 printInterval1D :: (Eq a, Fractional a, Show a) => (a, a) -> String
@@ -151,12 +170,10 @@ printInterval1D (x, y) =
 
 -- TODO
 -- this does not handle overflows
-printInterval2D :: (Show a, Eq a, Fractional a) => (a, a) -> Maybe String
-printInterval2D (xl, xh) =
-  case (xl == neginf, xh == inf) of
-    (True, _) -> Nothing
-    (_, True) -> Nothing
-    _         -> Just $ show xl <> "\t" <> show xh
+printInterval2D :: (Show a, RealFloat a) => (a, a) -> Maybe String
+printInterval2D (x, y)
+  | isInfinite x || isInfinite y = Nothing
+  | otherwise = Just $ show x <> "\t" <> show y
 
 
 binList :: Binned b a -> [((b, b), a)]
@@ -186,9 +203,9 @@ printHisto1D = printBinned1D printGauss1D
 
 
 printBinned2D
-  :: (Monoid a, Eq b, Fractional b, Show b, Eq c, Fractional c, Show c)
+  :: (Monoid a, RealFloat b, Show b)
   => (a -> String)
-  -> Compose (Binned b) (Binned c) a
+  -> Compose (Binned b) (Binned b) a
   -> String
 printBinned2D printContents b =
   unlines . catMaybes
@@ -199,10 +216,10 @@ printBinned2D printContents b =
     Compose b' = b
 
     bl = do
-      (xbinedges, ybin) <- binList b'
-      (ybinedges, val) <- binList ybin
-      return ((xbinedges, ybinedges), val)
+      (by, xbin) <- binList b'
+      (bx, zval) <- binList xbin
+      return ((by, bx), zval)
 
     tot = fold b
-    printBin ((bx, by), d) =
-      mconcat <$> sequenceA [printInterval2D bx, printInterval2D by, Just $ printContents d]
+    printBin ((by, bx), d) =
+      intercalate "\t" <$> sequenceA [printInterval2D bx, printInterval2D by, Just $ printContents d]
