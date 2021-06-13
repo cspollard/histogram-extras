@@ -8,18 +8,26 @@ module Data.StrictHashMap
   , intersectionWith, mapMaybeWithKey
   ) where
 
-import           Control.DeepSeq
-import           Control.Lens
-import           Data.Align
-import           Data.Data
-import           Data.Functor.Classes
-import           Data.Hashable
+import Control.DeepSeq ( NFData )
+import Control.Lens
+    ( Traversable(..),
+      Ixed(..),
+      Index,
+      IxValue,
+      (<&>),
+      view,
+      makePrisms,
+      At(..) )
+import Data.Align ( Align(..), Semialign(align) )
+import Data.Data ( Data, Typeable )
+import Data.Functor.Classes
+    ( Show1(liftShowsPrec), showsUnaryWith, Show2(..) )
+import Data.Hashable ( Hashable )
 import qualified Data.HashMap.Strict  as HM
-import           Data.Key
-import           Data.Semigroup
-import           Data.Serialize
+import Data.Key ( FoldableWithKey(foldMapWithKey), Key, Keyed(..) )
+import Data.Serialize ( Serialize(..) )
 import           GHC.Exts             (IsList (..))
-import           GHC.Generics
+import GHC.Generics ( Generic )
 import           Linear.Matrix        (Trace (..))
 import           Prelude              hiding (lookup)
 
@@ -68,9 +76,11 @@ instance Foldable (StrictHashMap k) where
 instance Traversable (StrictHashMap k) where
   traverse f (SHM m) = SHM <$> HM.traverseWithKey (const f) m
 
+instance (Hashable k, Ord k) => Semialign (StrictHashMap k) where
+  align (SHM m) (SHM m') = strictHashMap $ align m m'
+
 instance (Hashable k, Ord k) => Align (StrictHashMap k) where
   nil = mempty
-  align (SHM m) (SHM m') = strictHashMap $ align m m'
 
 instance (Hashable k, Ord k) => Trace (StrictHashMap k) where
   diagonal (SHM m) = strictHashMap . diagonal $ view _SHM <$> m

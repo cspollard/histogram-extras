@@ -5,4 +5,4 @@ packages:
 extra-deps:
 - histogram-fill-0.9.1.0
 - histogram-fill-cereal-0.8.5.0
-resolver: lts-11.22
+resolver: lts-17.15

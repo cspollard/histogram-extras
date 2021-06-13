@@ -20,6 +20,7 @@ dependencies:
 - base
 - lens 
 - these 
+- semialign 
 - hashable 
 - keys 
 - vector 
